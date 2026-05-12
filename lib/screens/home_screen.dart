@@ -15,9 +15,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    AppConfig.instance.addListener(() {
-      if (mounted) setState(() {});
-    });
+    AppConfig.instance.addListener(() { if (mounted) setState(() {}); });
   }
 
   @override
@@ -38,8 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   flag: AppConfig.instance.isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag,
                   alignment: OverlayAlignment.center,
                   visibility: NotificationVisibility.visibilitySecret,
-                  height: WindowSize.matchParent,
-                  width: WindowSize.matchParent,
+                  height: WindowSize.matchParent, width: WindowSize.matchParent,
                 );
               }
             },
@@ -49,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         children: List.generate(
           AppConfig.instance.shimejiCount,
-          (index) => ShimejiCharacter(key: ValueKey('shimeji_$index')),
+          (index) => ShimejiCharacter(key: ValueKey('shimeji_$index'), isOverlay: false),
         ),
       ),
       floatingActionButton: FloatingActionButton(
