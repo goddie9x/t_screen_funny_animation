@@ -1,7 +1,6 @@
 ﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../utils/config.dart';
 import '../widgets/shimeji_character.dart';
 import 'settings_screen.dart';
@@ -16,16 +15,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _requestOverlayPermission();
     AppConfig.instance.addListener(() {
       if (mounted) setState(() {});
     });
-  }
-
-  Future<void> _requestOverlayPermission() async {
-    if (Platform.isAndroid && await Permission.systemAlertWindow.isDenied) {
-      await Permission.systemAlertWindow.request();
-    }
   }
 
   @override
@@ -37,14 +29,17 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.desktop_windows),
-            tooltip: 'Start Background Overlay',
             onPressed: () async {
               if (Platform.isAndroid) {
+                bool isGranted = await FlutterOverlayWindow.isPermissionGranted();
+                if (!isGranted) await FlutterOverlayWindow.requestPermission();
                 if (await FlutterOverlayWindow.isActive()) return;
                 await FlutterOverlayWindow.showOverlay(
-                  flag: OverlayFlag.defaultFlag,
-                  alignment: OverlayAlignment.topLeft,
+                  flag: AppConfig.instance.isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag,
+                  alignment: OverlayAlignment.center,
                   visibility: NotificationVisibility.visibilitySecret,
+                  height: WindowSize.matchParent,
+                  width: WindowSize.matchParent,
                 );
               }
             },
