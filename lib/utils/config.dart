@@ -6,32 +6,16 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 class CustomPreset {
   String id; String name;
   String? headImg, bodyImg, armUpperImg, armLowerImg, legUpperImg, legLowerImg;
-  
-  CustomPreset({
-    required this.id, required this.name, 
-    this.headImg, this.bodyImg, 
-    this.armUpperImg, this.armLowerImg, 
-    this.legUpperImg, this.legLowerImg
-  });
-  
-  Map<String, dynamic> toJson() => {
-    'id': id, 'name': name, 'headImg': headImg, 'bodyImg': bodyImg,
-    'armUpperImg': armUpperImg, 'armLowerImg': armLowerImg,
-    'legUpperImg': legUpperImg, 'legLowerImg': legLowerImg
-  };
-  
-  factory CustomPreset.fromJson(Map<String, dynamic> j) => CustomPreset(
-    id: j['id'], name: j['name'], headImg: j['headImg'], bodyImg: j['bodyImg'],
-    armUpperImg: j['armUpperImg'], armLowerImg: j['armLowerImg'],
-    legUpperImg: j['legUpperImg'], legLowerImg: j['legLowerImg']
-  );
+  CustomPreset({required this.id, required this.name, this.headImg, this.bodyImg, this.armUpperImg, this.armLowerImg, this.legUpperImg, this.legLowerImg});
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'headImg': headImg, 'bodyImg': bodyImg, 'armUpperImg': armUpperImg, 'armLowerImg': armLowerImg, 'legUpperImg': legUpperImg, 'legLowerImg': legLowerImg};
+  factory CustomPreset.fromJson(Map<String, dynamic> j) => CustomPreset(id: j['id'], name: j['name'], headImg: j['headImg'], bodyImg: j['bodyImg'], armUpperImg: j['armUpperImg'], armLowerImg: j['armLowerImg'], legUpperImg: j['legUpperImg'], legLowerImg: j['legLowerImg']);
 }
 
 class AppConfig extends ChangeNotifier {
   static final AppConfig instance = AppConfig._internal();
   AppConfig._internal();
 
-  int shimejiCount = 1; double speedMultiplier = 1.0; int actionFrequency = 3; double sizeMultiplier = 1.0;
+  int shimejiCount = 1; double speedMultiplier = 0.5; int actionFrequency = 3; double sizeMultiplier = 1.0;
   bool isClickThrough = true; bool pauseOnScreenOff = true; 
   String mode = 'preset'; int presetId = 0; String? activeCustomPresetId;
   List<CustomPreset> customPresets = [];
@@ -39,7 +23,7 @@ class AppConfig extends ChangeNotifier {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     shimejiCount = prefs.getInt('count') ?? 1;
-    speedMultiplier = prefs.getDouble('speed') ?? 1.0;
+    speedMultiplier = prefs.getDouble('speed') ?? 0.5;
     actionFrequency = prefs.getInt('freq') ?? 3;
     sizeMultiplier = prefs.getDouble('size') ?? 1.0;
     isClickThrough = prefs.getBool('clickThrough') ?? true;

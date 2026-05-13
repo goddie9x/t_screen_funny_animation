@@ -20,20 +20,9 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat();
+    _animCtrl = AnimationController(vsync: this, duration: Duration(milliseconds: 1000 + _rng.nextInt(500)))..repeat();
     _timer = Timer.periodic(const Duration(milliseconds: 16), (t) => _update());
     _brain();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (AppConfig.instance.pauseOnScreenOff) {
-      if (state == AppLifecycleState.paused) { _timer?.cancel(); _animCtrl.stop(); }
-      else if (state == AppLifecycleState.resumed) { 
-        _timer = Timer.periodic(const Duration(milliseconds: 16), (t) => _update());
-        _animCtrl.repeat();
-      }
-    }
   }
 
   void _brain() {
@@ -42,8 +31,11 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       if (mode != 'fall' && mode != 'drag' && mode != 'climb') {
         int r = _rng.nextInt(100);
         if (r < 20) { mode = 'idle'; velX = 0; }
-        else if (r < 80) { mode = 'walk'; velX = (isLeft ? -2.0 : 2.0) * AppConfig.instance.speedMultiplier; }
-        else { mode = 'jump'; velY = -12; mode = 'fall'; }
+        else { 
+          mode = 'walk'; 
+          isLeft = _rng.nextBool(); 
+          velX = (isLeft ? -1.5 : 1.5) * AppConfig.instance.speedMultiplier; 
+        }
       }
       _brain();
     });
@@ -61,17 +53,17 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
       if (posY >= s.height - h) { posY = s.height - h; velY = 0; if(mode == 'fall') mode = 'idle'; }
 
+      // Logic leo trèo chuẩn: bám sát biên trái/phải
       if (posX <= 0) {
-        posX = 0;
-        if (mode == 'walk') { isLeft = false; velX = 2.0; }
-        if (posY > 50 && _rng.nextInt(10) < 3) { mode = 'climb'; velY = -2; velX = 0; isLeft = true; }
+        posX = 0; isLeft = false; velX = 1.5 * AppConfig.instance.speedMultiplier;
+        if (posY > 100 && _rng.nextInt(10) < 4) { mode = 'climb'; velY = -2; velX = 0; isLeft = true; }
       } else if (posX >= s.width - w) {
-        posX = s.width - w;
-        if (mode == 'walk') { isLeft = true; velX = -2.0; }
-        if (posY > 50 && _rng.nextInt(10) < 3) { mode = 'climb'; velY = -2; velX = 0; isLeft = false; }
+        posX = s.width - w; isLeft = true; velX = -1.5 * AppConfig.instance.speedMultiplier;
+        if (posY > 100 && _rng.nextInt(10) < 4) { mode = 'climb'; velY = -2; velX = 0; isLeft = false; }
       }
 
-      if (mode == 'climb' && (posY <= 0 || (posX > 5 && posX < s.width - w - 5))) {
+      // Đang leo mà hết biên thì rơi
+      if (mode == 'climb' && (posY <= 0 || (posX > 10 && posX < s.width - w - 10))) {
         mode = 'fall'; velY = 0; velX = isLeft ? 2 : -2;
       }
     });
@@ -113,44 +105,45 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     CustomPreset? cp = AppConfig.instance.getActiveCustom();
     bool isCus = AppConfig.instance.mode == 'custom';
 
-    double armUpRot = mode == 'walk' ? walk * 0.5 : (mode == 'climb' ? pi + climb * 0.3 : 0.2);
-    double armLowRot = mode == 'walk' ? walk.abs() * 0.4 : 0.2;
-    double legUpRot = mode == 'walk' ? -walk * 0.5 : (mode == 'climb' ? climb * 0.3 : 0);
-    double legLowRot = mode == 'walk' ? walk.abs() * 0.3 : 0;
+    // Tính toán góc quay cho từng đoạn khớp
+    double armUpRot = mode == 'walk' ? walk * 0.5 : (mode == 'climb' ? pi + climb * 0.4 : 0.2);
+    double armLowRot = mode == 'walk' ? walk.abs() * 0.5 : 0.3;
+    double legUpRot = mode == 'walk' ? -walk * 0.5 : (mode == 'climb' ? climb * 0.4 : 0);
+    double legLowRot = mode == 'walk' ? walk.abs() * 0.4 : 0.2;
 
+    // THỨ TỰ LAYER CHUẨN: Tay xa -> Chân -> Thân/Đầu -> Tay gần
     return SizedBox(
       width: 100, height: 150,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Positioned(left: 35, top: 50, child: _part(30, 50, Colors.blue, isCus ? cp?.bodyImg : null, [
-            Positioned(left: -5, top: -35, child: _part(40, 40, Colors.orange, isCus ? cp?.headImg : null, [])),
-            _limb(true, armUpRot, armLowRot, isCus ? cp?.armUpperImg : null, isCus ? cp?.armLowerImg : null),
-            _limb(false, -armUpRot, armLowRot, isCus ? cp?.armUpperImg : null, isCus ? cp?.armLowerImg : null),
-            _leg(true, legUpRot, legLowRot, isCus ? cp?.legUpperImg : null, isCus ? cp?.legLowerImg : null),
-            _leg(false, -legUpRot, legLowRot, isCus ? cp?.legUpperImg : null, isCus ? cp?.legLowerImg : null),
-          ])),
+          Positioned(left: 35, top: 50, child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              _limb(false, -armUpRot, armLowRot, isCus ? cp?.armUpperImg : null, isCus ? cp?.armLowerImg : null), // Tay xa
+              _leg(true, legUpRot, legLowRot, isCus ? cp?.legUpperImg : null, isCus ? cp?.legLowerImg : null),    // Chân gần
+              _leg(false, -legUpRot, legLowRot, isCus ? cp?.legUpperImg : null, isCus ? cp?.legLowerImg : null),  // Chân xa
+              _part(30, 50, Colors.blue, isCus ? cp?.bodyImg : null, [
+                 Positioned(left: -5, top: -35, child: _part(40, 40, Colors.orange, isCus ? cp?.headImg : null, [])), // Đầu & Thân
+              ]),
+              _limb(true, armUpRot, armLowRot, isCus ? cp?.armUpperImg : null, isCus ? cp?.armLowerImg : null),   // Tay gần
+            ],
+          )),
         ],
       ),
     );
   }
 
-  Widget _limb(bool left, double upRot, double lowRot, String? up, String? low) {
-    return Positioned(
-      left: left ? -5 : 20, top: 0,
-      child: _joint(15, 30, Colors.grey, upRot, up, [
-        Positioned(left: 0, top: 25, child: _joint(12, 25, Colors.grey, lowRot, low, [])),
-      ]),
-    );
+  Widget _limb(bool near, double upR, double lowR, String? up, String? low) {
+    return Positioned(left: near ? -8 : 22, top: 0, child: _joint(15, 30, Colors.grey, upR, up, [
+        Positioned(left: 0, top: 25, child: _joint(12, 25, Colors.grey, lowR, low, [])),
+    ]));
   }
 
-  Widget _leg(bool left, double upRot, double lowRot, String? up, String? low) {
-    return Positioned(
-      left: left ? 2 : 13, top: 45,
-      child: _joint(15, 30, Colors.brown, upRot, up, [
-        Positioned(left: 0, top: 25, child: _joint(13, 25, Colors.brown, lowRot, low, [])),
-      ]),
-    );
+  Widget _leg(bool near, double upR, double lowR, String? up, String? low) {
+    return Positioned(left: near ? 2 : 13, top: 45, child: _joint(15, 30, Colors.brown, upR, up, [
+        Positioned(left: 0, top: 25, child: _joint(13, 25, Colors.brown, lowR, low, [])),
+    ]));
   }
 
   Widget _joint(double w, double h, Color c, double r, String? img, List<Widget> children) {

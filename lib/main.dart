@@ -33,21 +33,14 @@ class _OverlayScreenState extends State<OverlayScreen> {
   StreamSubscription? _accelSub;
   DateTime _lastShake = DateTime.now();
   bool _showFlash = false;
-  late bool _currentClickThrough;
 
   @override
   void initState() {
     super.initState();
-    _currentClickThrough = AppConfig.instance.isClickThrough;
-    
     FlutterOverlayWindow.overlayListener.listen((event) async {
       if (event == 'reload') {
         await AppConfig.instance.load();
-        if (mounted) {
-          setState(() {
-            _currentClickThrough = AppConfig.instance.isClickThrough;
-          });
-        }
+        if (mounted) setState(() {});
       }
     });
     _initSensor();
@@ -59,20 +52,11 @@ class _OverlayScreenState extends State<OverlayScreen> {
       if (gForce > 2.8) { 
         if (DateTime.now().difference(_lastShake) > const Duration(seconds: 2)) {
           _lastShake = DateTime.now();
-          
-          _currentClickThrough = !_currentClickThrough;
-          AppConfig.instance.isClickThrough = _currentClickThrough;
-          
+          AppConfig.instance.isClickThrough = !AppConfig.instance.isClickThrough;
           await AppConfig.instance.save();
-          
-          if (mounted) {
-            setState(() => _showFlash = true);
-          }
-          
+          if (mounted) setState(() => _showFlash = true);
           Future.delayed(const Duration(milliseconds: 1500), () {
-            if (mounted) {
-              setState(() => _showFlash = false);
-            }
+            if (mounted) setState(() => _showFlash = false);
           });
         }
       }
@@ -80,49 +64,28 @@ class _OverlayScreenState extends State<OverlayScreen> {
   }
 
   @override
-  void dispose() {
-    _accelSub?.cancel();
-    super.dispose();
-  }
+  void dispose() { _accelSub?.cancel(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
+    final cfg = AppConfig.instance;
     return Stack(
       children: [
         if (_showFlash)
           Positioned.fill(
             child: Container(
-              color: _currentClickThrough 
-                  ? Colors.green.withOpacity(0.6) 
-                  : Colors.blue.withOpacity(0.6),
+              color: cfg.isClickThrough ? Colors.green.withOpacity(0.6) : Colors.blue.withOpacity(0.6),
               child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _currentClickThrough ? Icons.visibility_off : Icons.touch_app,
-                      size: 80,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      _currentClickThrough ? 'CHẾ ĐỘ: XUYÊN THẤU\n(Dùng app khác)' : 'CHẾ ĐỘ: TƯƠNG TÁC\n(Kéo thả Buddy)',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        decoration: TextDecoration.none,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  cfg.isClickThrough ? 'XUYÊN THẤU' : 'TƯƠNG TÁC',
+                  style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold, decoration: TextDecoration.none),
                 ),
               ),
             ),
           ),
         ...List.generate(
-          AppConfig.instance.shimejiCount,
-          (index) => TFunnyBuddy(key: ValueKey('buddy_$index'), isOverlay: true),
+          cfg.shimejiCount,
+          (index) => TFunnyBuddy(key: ValueKey('buddy_ovl_$index'), isOverlay: true),
         ),
       ],
     );
