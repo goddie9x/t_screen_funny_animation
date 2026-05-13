@@ -1,5 +1,5 @@
 ﻿import 'package:flutter/material.dart';
-import '../widgets/shimeji_character.dart';
+import '../widgets/t_funny_buddy.dart';
 
 class OverlayScreen extends StatelessWidget {
   const OverlayScreen({super.key});
@@ -9,7 +9,7 @@ class OverlayScreen extends StatelessWidget {
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          ShimejiCharacter(),
+          TFunnyBuddy(isOverlay: true),
         ],
       ),
     );

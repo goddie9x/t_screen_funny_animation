@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import '../utils/config.dart';
-import '../widgets/shimeji_character.dart';
+import '../widgets/t_funny_buddy.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         children: List.generate(
           AppConfig.instance.shimejiCount,
-          (index) => ShimejiCharacter(key: ValueKey('shimeji_$index'), isOverlay: false),
+          (index) => TFunnyBuddy(key: ValueKey('shimeji_$index'), isOverlay: false),
         ),
       ),
       floatingActionButton: FloatingActionButton(
@@ -56,3 +56,4 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+

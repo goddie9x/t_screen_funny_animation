@@ -16,7 +16,8 @@ class AppConfig extends ChangeNotifier {
   AppConfig._internal();
 
   int shimejiCount = 1; double speedMultiplier = 1.0; int actionFrequency = 3; double sizeMultiplier = 1.0;
-  bool isClickThrough = true; // Mặc định phải là True để không chặn điện thoại người dùng
+  bool isClickThrough = true; 
+  bool pauseOnScreenOff = true; 
   String mode = 'preset'; int presetId = 0; String? activeCustomPresetId;
   List<CustomPreset> customPresets = [];
 
@@ -27,29 +28,35 @@ class AppConfig extends ChangeNotifier {
     actionFrequency = prefs.getInt('freq') ?? 3;
     sizeMultiplier = prefs.getDouble('size') ?? 1.0;
     isClickThrough = prefs.getBool('clickThrough') ?? true;
+    pauseOnScreenOff = prefs.getBool('pauseOnScreenOff') ?? true;
     mode = prefs.getString('mode') ?? 'preset';
     presetId = prefs.getInt('presetId') ?? 0;
     activeCustomPresetId = prefs.getString('activeCustomPresetId');
     List<String>? savedPresets = prefs.getStringList('customPresets');
     if (savedPresets != null) customPresets = savedPresets.map((e) => CustomPreset.fromJson(jsonDecode(e))).toList();
-    _updateFlag(); notifyListeners();
+    notifyListeners();
   }
 
   Future<void> save() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('count', shimejiCount); await prefs.setDouble('speed', speedMultiplier);
-    await prefs.setInt('freq', actionFrequency); await prefs.setDouble('size', sizeMultiplier);
-    await prefs.setBool('clickThrough', isClickThrough); await prefs.setString('mode', mode);
+    await prefs.setInt('count', shimejiCount);
+    await prefs.setDouble('speed', speedMultiplier);
+    await prefs.setInt('freq', actionFrequency);
+    await prefs.setDouble('size', sizeMultiplier);
+    await prefs.setBool('clickThrough', isClickThrough); 
+    await prefs.setBool('pauseOnScreenOff', pauseOnScreenOff);
+    await prefs.setString('mode', mode);
     await prefs.setInt('presetId', presetId);
     if(activeCustomPresetId != null) await prefs.setString('activeCustomPresetId', activeCustomPresetId!);
     List<String> toSave = customPresets.map((e) => jsonEncode(e.toJson())).toList();
     await prefs.setStringList('customPresets', toSave);
-    _updateFlag();
+    
+    await updateWindowFlag();
     try { await FlutterOverlayWindow.shareData('reload'); } catch (_) {}
     notifyListeners();
   }
   
-  Future<void> _updateFlag() async {
+  Future<void> updateWindowFlag() async {
     try {
       if (await FlutterOverlayWindow.isActive()) {
         await FlutterOverlayWindow.updateFlag(isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag);

@@ -4,36 +4,61 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../utils/config.dart';
 
-class ShimejiCharacter extends StatefulWidget {
+class TFunnyBuddy extends StatefulWidget {
   final bool isOverlay;
-  const ShimejiCharacter({super.key, required this.isOverlay});
+  const TFunnyBuddy({super.key, required this.isOverlay});
   @override
-  State<ShimejiCharacter> createState() => _ShimejiCharacterState();
+  State<TFunnyBuddy> createState() => _TFunnyBuddyState();
 }
 
-class _ShimejiCharacterState extends State<ShimejiCharacter> with TickerProviderStateMixin {
+class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin, WidgetsBindingObserver {
   double posX = 50, posY = 50, velX = 0, velY = 0;
   bool isLeft = false; String mode = 'fall';
-  late AnimationController _animCtrl; late Timer _logicTimer; final Random _rng = Random();
+  late AnimationController _animCtrl; Timer? _logicTimer; final Random _rng = Random();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     posX = _rng.nextDouble() * 150 + 50;
-    _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat();
-    _logicTimer = Timer.periodic(const Duration(milliseconds: 16), (t) => _update());
+    _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
+    _startTimer();
     _brain();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (AppConfig.instance.pauseOnScreenOff) {
+      if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+        _stopTimer();
+      } else if (state == AppLifecycleState.resumed) {
+        _startTimer();
+      }
+    }
+  }
+
+  void _startTimer() {
+    if (_logicTimer?.isActive ?? false) return;
+    _logicTimer = Timer.periodic(const Duration(milliseconds: 16), (t) => _update());
+    if (!_animCtrl.isAnimating) _animCtrl.repeat();
+  }
+
+  void _stopTimer() {
+    _logicTimer?.cancel();
+    _animCtrl.stop();
   }
 
   void _brain() {
     Future.delayed(Duration(seconds: _rng.nextInt(AppConfig.instance.actionFrequency) + 1), () {
       if (!mounted) return;
-      if (mode != 'fall' && mode != 'drag' && mode != 'climb') {
-        int r = _rng.nextInt(100);
-        if (r < 20) { mode = 'idle'; velX = 0; }
-        else if (r < 50) { mode = 'walk'; velX = (isLeft ? -2.0 : 2.0) * AppConfig.instance.speedMultiplier; }
-        else if (r < 80) { mode = 'crawl'; velX = (isLeft ? -1.0 : 1.0) * AppConfig.instance.speedMultiplier; }
-        else { mode = 'jump'; velY = -12 * AppConfig.instance.speedMultiplier; mode = 'fall'; }
+      if (_logicTimer?.isActive ?? false) {
+        if (mode != 'fall' && mode != 'drag' && mode != 'climb') {
+          int r = _rng.nextInt(100);
+          if (r < 20) { mode = 'idle'; velX = 0; }
+          else if (r < 50) { mode = 'walk'; velX = (isLeft ? -2.0 : 2.0) * AppConfig.instance.speedMultiplier; }
+          else if (r < 80) { mode = 'crawl'; velX = (isLeft ? -1.0 : 1.0) * AppConfig.instance.speedMultiplier; }
+          else { mode = 'jump'; velY = -12 * AppConfig.instance.speedMultiplier; mode = 'fall'; }
+        }
       }
       _brain();
     });
@@ -65,7 +90,12 @@ class _ShimejiCharacterState extends State<ShimejiCharacter> with TickerProvider
   }
 
   @override
-  void dispose() { _animCtrl.dispose(); _logicTimer.cancel(); super.dispose(); }
+  void dispose() { 
+    WidgetsBinding.instance.removeObserver(this);
+    _animCtrl.dispose(); 
+    _logicTimer?.cancel(); 
+    super.dispose(); 
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +175,6 @@ class _ShimejiCharacterState extends State<ShimejiCharacter> with TickerProvider
 
   Widget _eye() => Container(width: 5, height: 5, color: Colors.white, child: Center(child: Container(width: 2, height: 2, color: Colors.black)));
 
-  // BỎ HOÀN TOÀN ĐÓNG KHUNG THEO YÊU CẦU
   Widget _joint(double w, double h, Color c, double r, Alignment a, String? img, List<Widget> children) {
     bool hasImg = img != null && img.isNotEmpty;
     return Transform.rotate(
@@ -158,7 +187,7 @@ class _ShimejiCharacterState extends State<ShimejiCharacter> with TickerProvider
             child: OverflowBox(
               maxWidth: double.infinity,
               maxHeight: double.infinity,
-              child: Image.file(File(img), fit: BoxFit.contain, width: w * 2.5) // Ảnh không bị bó hẹp, tự phóng to vượt khung
+              child: Image.file(File(img), fit: BoxFit.contain, width: w * 2.5)
             )
           ),
           ...children
@@ -167,3 +196,4 @@ class _ShimejiCharacterState extends State<ShimejiCharacter> with TickerProvider
     );
   }
 }
+

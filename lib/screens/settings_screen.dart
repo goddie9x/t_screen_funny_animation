@@ -28,6 +28,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: cfg.isClickThrough,
             onChanged: (v) { cfg.isClickThrough = v; cfg.save(); setState((){}); },
           ),
+          SwitchListTile(
+            title: const Text('Tạm dừng khi tắt màn hình (Tiết kiệm pin)'),
+            subtitle: const Text('Ngừng mọi tính toán vật lý và hoạt ảnh khi màn hình khóa để bảo vệ pin.'),
+            value: cfg.pauseOnScreenOff,
+            onChanged: (v) { cfg.pauseOnScreenOff = v; cfg.save(); setState((){}); },
+          ),
           const Divider(),
           Text('Size: ${cfg.sizeMultiplier.toStringAsFixed(1)}x'),
           Slider(value: cfg.sizeMultiplier, min: 0.5, max: 2.5, onChanged: (v) { cfg.sizeMultiplier = v; cfg.save(); setState((){}); }),
