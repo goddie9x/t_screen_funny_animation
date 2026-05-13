@@ -5,10 +5,26 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 class CustomPreset {
   String id; String name;
-  String? headImg, bodyImg, armImg, legImg;
-  CustomPreset({required this.id, required this.name, this.headImg, this.bodyImg, this.armImg, this.legImg});
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'headImg': headImg, 'bodyImg': bodyImg, 'armImg': armImg, 'legImg': legImg};
-  factory CustomPreset.fromJson(Map<String, dynamic> j) => CustomPreset(id: j['id'], name: j['name'], headImg: j['headImg'], bodyImg: j['bodyImg'], armImg: j['armImg'], legImg: j['legImg']);
+  String? headImg, bodyImg, armUpperImg, armLowerImg, legUpperImg, legLowerImg;
+  
+  CustomPreset({
+    required this.id, required this.name, 
+    this.headImg, this.bodyImg, 
+    this.armUpperImg, this.armLowerImg, 
+    this.legUpperImg, this.legLowerImg
+  });
+  
+  Map<String, dynamic> toJson() => {
+    'id': id, 'name': name, 'headImg': headImg, 'bodyImg': bodyImg,
+    'armUpperImg': armUpperImg, 'armLowerImg': armLowerImg,
+    'legUpperImg': legUpperImg, 'legLowerImg': legLowerImg
+  };
+  
+  factory CustomPreset.fromJson(Map<String, dynamic> j) => CustomPreset(
+    id: j['id'], name: j['name'], headImg: j['headImg'], bodyImg: j['bodyImg'],
+    armUpperImg: j['armUpperImg'], armLowerImg: j['armLowerImg'],
+    legUpperImg: j['legUpperImg'], legLowerImg: j['legLowerImg']
+  );
 }
 
 class AppConfig extends ChangeNotifier {
@@ -16,8 +32,7 @@ class AppConfig extends ChangeNotifier {
   AppConfig._internal();
 
   int shimejiCount = 1; double speedMultiplier = 1.0; int actionFrequency = 3; double sizeMultiplier = 1.0;
-  bool isClickThrough = true; 
-  bool pauseOnScreenOff = true; 
+  bool isClickThrough = true; bool pauseOnScreenOff = true; 
   String mode = 'preset'; int presetId = 0; String? activeCustomPresetId;
   List<CustomPreset> customPresets = [];
 
@@ -43,25 +58,18 @@ class AppConfig extends ChangeNotifier {
     await prefs.setDouble('speed', speedMultiplier);
     await prefs.setInt('freq', actionFrequency);
     await prefs.setDouble('size', sizeMultiplier);
-    await prefs.setBool('clickThrough', isClickThrough); 
+    await prefs.setBool('clickThrough', isClickThrough);
     await prefs.setBool('pauseOnScreenOff', pauseOnScreenOff);
     await prefs.setString('mode', mode);
     await prefs.setInt('presetId', presetId);
     if(activeCustomPresetId != null) await prefs.setString('activeCustomPresetId', activeCustomPresetId!);
-    List<String> toSave = customPresets.map((e) => jsonEncode(e.toJson())).toList();
-    await prefs.setStringList('customPresets', toSave);
+    await prefs.setStringList('customPresets', customPresets.map((e) => jsonEncode(e.toJson())).toList());
     
-    await updateWindowFlag();
-    try { await FlutterOverlayWindow.shareData('reload'); } catch (_) {}
+    if (await FlutterOverlayWindow.isActive()) {
+      await FlutterOverlayWindow.updateFlag(isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag);
+      await FlutterOverlayWindow.shareData('reload');
+    }
     notifyListeners();
-  }
-  
-  Future<void> updateWindowFlag() async {
-    try {
-      if (await FlutterOverlayWindow.isActive()) {
-        await FlutterOverlayWindow.updateFlag(isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag);
-      }
-    } catch (_) {}
   }
   CustomPreset? getActiveCustom() { try { return customPresets.firstWhere((p) => p.id == activeCustomPresetId); } catch (_) { return null; } }
 }
