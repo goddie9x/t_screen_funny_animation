@@ -30,7 +30,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       if (!mounted) return;
       if (mode != 'fall' && mode != 'drag' && mode != 'climb') {
         int r = _rng.nextInt(100);
-        if (r < 20) { mode = 'idle'; velX = 0; }
+        if (r < 25) { mode = 'idle'; velX = 0; }
         else { 
           mode = 'walk'; 
           isLeft = _rng.nextBool(); 
@@ -48,23 +48,52 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     double w = 100 * scale; double h = 150 * scale;
 
     setState(() {
-      if (mode != 'climb') velY += 0.8;
-      posX += velX; posY += velY;
+      if (mode != 'climb') {
+        velY += 0.8;
+      } else {
+        velY = -1.8 * AppConfig.instance.speedMultiplier; // Tốc độ leo
+      }
+      
+      posX += velX; 
+      posY += velY;
 
-      if (posY >= s.height - h) { posY = s.height - h; velY = 0; if(mode == 'fall') mode = 'idle'; }
-
-      // Logic leo trèo chuẩn: bám sát biên trái/phải
-      if (posX <= 0) {
-        posX = 0; isLeft = false; velX = 1.5 * AppConfig.instance.speedMultiplier;
-        if (posY > 100 && _rng.nextInt(10) < 4) { mode = 'climb'; velY = -2; velX = 0; isLeft = true; }
-      } else if (posX >= s.width - w) {
-        posX = s.width - w; isLeft = true; velX = -1.5 * AppConfig.instance.speedMultiplier;
-        if (posY > 100 && _rng.nextInt(10) < 4) { mode = 'climb'; velY = -2; velX = 0; isLeft = false; }
+      // Va chạm mặt đất
+      if (posY >= s.height - h) { 
+        posY = s.height - h; 
+        velY = 0; 
+        if(mode == 'fall' || mode == 'climb') mode = 'idle'; 
       }
 
-      // Đang leo mà hết biên thì rơi
-      if (mode == 'climb' && (posY <= 0 || (posX > 10 && posX < s.width - w - 10))) {
-        mode = 'fall'; velY = 0; velX = isLeft ? 2 : -2;
+      // Va chạm biên trái
+      if (posX <= 0) {
+        posX = 0;
+        if (mode == 'walk' || mode == 'fall') {
+          if (_rng.nextInt(10) < 4 && posY > 100) {
+            mode = 'climb'; velX = 0; isLeft = true;
+          } else {
+            isLeft = false; velX = 1.5 * AppConfig.instance.speedMultiplier;
+          }
+        }
+      } 
+      // Va chạm biên phải
+      else if (posX >= s.width - w) {
+        posX = s.width - w;
+        if (mode == 'walk' || mode == 'fall') {
+          if (_rng.nextInt(10) < 4 && posY > 100) {
+            mode = 'climb'; velX = 0; isLeft = false;
+          } else {
+            isLeft = true; velX = -1.5 * AppConfig.instance.speedMultiplier;
+          }
+        }
+      }
+
+      // Logic khi đang leo
+      if (mode == 'climb') {
+        if (posY <= 0) { // Leo lên đỉnh màn hình
+          mode = 'fall'; velY = 0; velX = isLeft ? 2 : -2;
+        } else if (_rng.nextInt(500) < 2) { // Ngẫu nhiên rơi khi đang leo
+          mode = 'fall'; velY = 0; velX = isLeft ? 1 : -1;
+        }
       }
     });
   }
@@ -105,13 +134,20 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     CustomPreset? cp = AppConfig.instance.getActiveCustom();
     bool isCus = AppConfig.instance.mode == 'custom';
 
-    // Tính toán góc quay cho từng đoạn khớp
-    double armUpRot = mode == 'walk' ? walk * 0.5 : (mode == 'climb' ? pi + climb * 0.4 : 0.2);
-    double armLowRot = mode == 'walk' ? walk.abs() * 0.5 : 0.3;
-    double legUpRot = mode == 'walk' ? -walk * 0.5 : (mode == 'climb' ? climb * 0.4 : 0);
-    double legLowRot = mode == 'walk' ? walk.abs() * 0.4 : 0.2;
+    // Animation cho từng mode
+    double armUpRot = 0.2; double armLowRot = 0.3;
+    double legUpRot = 0; double legLowRot = 0.2;
 
-    // THỨ TỰ LAYER CHUẨN: Tay xa -> Chân -> Thân/Đầu -> Tay gần
+    if (mode == 'walk') {
+      armUpRot = walk * 0.5; armLowRot = walk.abs() * 0.5;
+      legUpRot = -walk * 0.5; legLowRot = walk.abs() * 0.4;
+    } else if (mode == 'climb') {
+      armUpRot = pi + climb * 0.5; armLowRot = 0.8; // Gập tay sâu khi leo
+      legUpRot = climb * 0.5; legLowRot = 0.6;
+    } else if (mode == 'drag') {
+      armUpRot = pi - 0.2; legUpRot = 0.3;
+    }
+
     return SizedBox(
       width: 100, height: 150,
       child: Stack(
@@ -120,13 +156,13 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
           Positioned(left: 35, top: 50, child: Stack(
             clipBehavior: Clip.none,
             children: [
-              _limb(false, -armUpRot, armLowRot, isCus ? cp?.armUpperImg : null, isCus ? cp?.armLowerImg : null), // Tay xa
-              _leg(true, legUpRot, legLowRot, isCus ? cp?.legUpperImg : null, isCus ? cp?.legLowerImg : null),    // Chân gần
-              _leg(false, -legUpRot, legLowRot, isCus ? cp?.legUpperImg : null, isCus ? cp?.legLowerImg : null),  // Chân xa
+              _limb(false, -armUpRot, armLowRot, isCus ? cp?.armUpperImg : null, isCus ? cp?.armLowerImg : null), 
+              _leg(true, legUpRot, legLowRot, isCus ? cp?.legUpperImg : null, isCus ? cp?.legLowerImg : null),    
+              _leg(false, -legUpRot, legLowRot, isCus ? cp?.legUpperImg : null, isCus ? cp?.legLowerImg : null),  
               _part(30, 50, Colors.blue, isCus ? cp?.bodyImg : null, [
-                 Positioned(left: -5, top: -35, child: _part(40, 40, Colors.orange, isCus ? cp?.headImg : null, [])), // Đầu & Thân
+                 Positioned(left: -5, top: -35, child: _part(40, 40, Colors.orange, isCus ? cp?.headImg : null, [])), 
               ]),
-              _limb(true, armUpRot, armLowRot, isCus ? cp?.armUpperImg : null, isCus ? cp?.armLowerImg : null),   // Tay gần
+              _limb(true, armUpRot, armLowRot, isCus ? cp?.armUpperImg : null, isCus ? cp?.armLowerImg : null),   
             ],
           )),
         ],
