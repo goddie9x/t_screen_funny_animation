@@ -16,31 +16,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final cfg = AppConfig.instance;
     return Scaffold(
-      appBar: AppBar(title: const Text('Cấu hình Buddy'), actions: [
-        IconButton(icon: const Icon(Icons.save), onPressed: () async {
+      appBar: AppBar(title: Text(cfg.translate('settings')), actions: [
+        IconButton(icon: const Icon(Icons.check_circle_outline), onPressed: () async {
           await cfg.save();
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu và áp dụng toàn hệ thống!')));
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(cfg.translate('save'))));
         })
       ]),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _sectionTitle('Cài đặt chung (Nhấn Lưu để áp dụng)'),
-          _sliderRow('Số lượng Buddy', cfg.shimejiCount.toDouble(), 1, 10, (v) => cfg.shimejiCount = v.toInt()),
-          _sliderRow('Tốc độ', cfg.speedMultiplier, 0.1, 2.0, (v) => cfg.speedMultiplier = v),
-          _sliderRow('Kích thước', cfg.sizeMultiplier, 0.5, 2.0, (v) => cfg.sizeMultiplier = v),
-          SwitchListTile(title: const Text('Xuyên thấu'), value: cfg.isClickThrough, onChanged: (v) => setState(() => cfg.isClickThrough = v)),
-          SwitchListTile(title: const Text('Tiết kiệm pin'), value: cfg.pauseOnScreenOff, onChanged: (v) => setState(() => cfg.pauseOnScreenOff = v)),
+          _sectionTitle(cfg.translate('theme')),
+          SegmentedButton<ThemeMode>(
+            segments: const [
+              ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode), label: Text('Light')),
+              ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode), label: Text('Dark')),
+              ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.settings_brightness), label: Text('Auto')),
+            ],
+            selected: {cfg.themeMode},
+            onSelectionChanged: (Set<ThemeMode> s) => setState(() => cfg.toggleTheme(s.first)),
+          ),
+          const SizedBox(height: 10),
+          _sectionTitle(cfg.translate('lang')),
+          Row(
+            children: [
+              ChoiceChip(label: const Text('Tiếng Việt'), selected: cfg.locale.languageCode == 'vi', onSelected: (v) => cfg.toggleLang(const Locale('vi'))),
+              const SizedBox(width: 10),
+              ChoiceChip(label: const Text('English'), selected: cfg.locale.languageCode == 'en', onSelected: (v) => cfg.toggleLang(const Locale('en'))),
+            ],
+          ),
           const Divider(),
-          _sectionTitle('Nhân vật tùy chỉnh'),
-          ElevatedButton.icon(icon: const Icon(Icons.person_add), label: const Text('Thêm Preset'), onPressed: _createNewPreset),
+          _sliderRow(cfg.translate('count'), cfg.shimejiCount.toDouble(), 1, 10, (v) => cfg.shimejiCount = v.toInt()),
+          _sliderRow(cfg.translate('speed'), cfg.speedMultiplier, 0.1, 2.0, (v) => cfg.speedMultiplier = v),
+          _sliderRow(cfg.translate('size'), cfg.sizeMultiplier, 0.5, 2.0, (v) => cfg.sizeMultiplier = v),
+          SwitchListTile(title: Text(cfg.translate('click_through')), value: cfg.isClickThrough, onChanged: (v) => setState(() => cfg.isClickThrough = v)),
+          SwitchListTile(title: Text(cfg.translate('battery')), value: cfg.pauseOnScreenOff, onChanged: (v) => setState(() => cfg.pauseOnScreenOff = v)),
+          const Divider(),
+          ElevatedButton.icon(icon: const Icon(Icons.person_add), label: Text(cfg.translate('add_preset')), onPressed: _createNewPreset),
           ...cfg.customPresets.map((p) => _presetCard(p)).toList(),
         ],
       ),
     );
   }
 
-  Widget _sectionTitle(String text) => Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)));
+  Widget _sectionTitle(String text) => Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold)));
 
   Widget _sliderRow(String label, double val, double min, double max, Function(double) onCh) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -52,18 +70,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _presetCard(CustomPreset p) {
     final cfg = AppConfig.instance;
     return Card(
-      color: cfg.activeCustomPresetId == p.id ? Colors.blue.shade50 : null,
       child: ExpansionTile(
         leading: Radio<String>(value: p.id, groupValue: cfg.activeCustomPresetId, onChanged: (v) { cfg.mode = 'custom'; cfg.activeCustomPresetId = v; setState((){}); }),
         title: Text(p.name),
         children: [
           _upRow(p, 'Đầu', p.headImg, (s) => p.headImg = s),
           _upRow(p, 'Thân', p.bodyImg, (s) => p.bodyImg = s),
-          _upRow(p, 'Tay trên', p.armUpperImg, (s) => p.armUpperImg = s),
-          _upRow(p, 'Tay dưới', p.armLowerImg, (s) => p.armLowerImg = s),
-          _upRow(p, 'Chân trên', p.legUpperImg, (s) => p.legUpperImg = s),
-          _upRow(p, 'Chân dưới', p.legLowerImg, (s) => p.legLowerImg = s),
-          TextButton.icon(onPressed: (){ cfg.customPresets.remove(p); setState((){}); }, icon: const Icon(Icons.delete, color: Colors.red), label: const Text('Xóa', style: TextStyle(color: Colors.red)))
+          TextButton(onPressed: (){ cfg.customPresets.remove(p); setState((){}); }, child: const Text('Xóa', style: TextStyle(color: Colors.red)))
         ],
       ),
     );
@@ -72,22 +85,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _createNewPreset() {
     TextEditingController ctrl = TextEditingController();
     showDialog(context: context, builder: (c) => AlertDialog(
-      title: const Text('Tên nhân vật'),
+      title: const Text('New Buddy'),
       content: TextField(controller: ctrl),
-      actions: [TextButton(onPressed: () { 
-        if(ctrl.text.isNotEmpty) { 
-          AppConfig.instance.customPresets.add(CustomPreset(id: DateTime.now().toString(), name: ctrl.text)); 
-          setState((){}); 
-        } 
-        Navigator.pop(c); 
-      }, child: const Text('Lưu'))],
+      actions: [TextButton(onPressed: () { if(ctrl.text.isNotEmpty) { AppConfig.instance.customPresets.add(CustomPreset(id: DateTime.now().toString(), name: ctrl.text)); setState((){}); } Navigator.pop(c); }, child: const Text('OK'))],
     ));
   }
 
   Widget _upRow(CustomPreset p, String label, String? path, Function(String) onSet) {
     return ListTile(
       dense: true, title: Text(label),
-      trailing: path != null ? Image.file(File(path), width: 30) : const Icon(Icons.upload, size: 20),
+      trailing: path != null ? const Icon(Icons.check, color: Colors.green) : const Icon(Icons.upload, size: 20),
       onTap: () async {
         final x = await _picker.pickImage(source: ImageSource.gallery);
         if (x != null) { onSet(x.path); setState((){}); }

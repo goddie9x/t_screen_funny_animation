@@ -20,6 +20,10 @@ class AppConfig extends ChangeNotifier {
   String mode = 'preset'; int presetId = 0; String? activeCustomPresetId;
   List<CustomPreset> customPresets = [];
 
+  // Theme & Language
+  ThemeMode themeMode = ThemeMode.system;
+  Locale locale = const Locale('vi');
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     shimejiCount = prefs.getInt('count') ?? 1;
@@ -31,6 +35,11 @@ class AppConfig extends ChangeNotifier {
     mode = prefs.getString('mode') ?? 'preset';
     presetId = prefs.getInt('presetId') ?? 0;
     activeCustomPresetId = prefs.getString('activeCustomPresetId');
+    
+    String themeStr = prefs.getString('themeMode') ?? 'system';
+    themeMode = themeStr == 'light' ? ThemeMode.light : (themeStr == 'dark' ? ThemeMode.dark : ThemeMode.system);
+    locale = Locale(prefs.getString('lang') ?? 'vi');
+
     List<String>? savedPresets = prefs.getStringList('customPresets');
     if (savedPresets != null) customPresets = savedPresets.map((e) => CustomPreset.fromJson(jsonDecode(e))).toList();
     notifyListeners();
@@ -44,6 +53,8 @@ class AppConfig extends ChangeNotifier {
     await prefs.setDouble('size', sizeMultiplier);
     await prefs.setBool('clickThrough', isClickThrough);
     await prefs.setBool('pauseOnScreenOff', pauseOnScreenOff);
+    await prefs.setString('themeMode', themeMode == ThemeMode.light ? 'light' : (themeMode == ThemeMode.dark ? 'dark' : 'system'));
+    await prefs.setString('lang', locale.languageCode);
     await prefs.setString('mode', mode);
     await prefs.setInt('presetId', presetId);
     if(activeCustomPresetId != null) await prefs.setString('activeCustomPresetId', activeCustomPresetId!);
@@ -55,5 +66,25 @@ class AppConfig extends ChangeNotifier {
     }
     notifyListeners();
   }
+  
+  void toggleTheme(ThemeMode m) { themeMode = m; save(); }
+  void toggleLang(Locale l) { locale = l; save(); }
+  
+  String translate(String key) {
+    Map<String, Map<String, String>> localized = {
+      'vi': {
+        'title': 'Bạn Đồng Hành T-Funny', 'settings': 'Cài đặt', 'save': 'Lưu cấu hình',
+        'count': 'Số lượng', 'speed': 'Tốc độ', 'size': 'Kích thước', 'click_through': 'Xuyên thấu',
+        'battery': 'Tiết kiệm pin', 'theme': 'Giao diện', 'lang': 'Ngôn ngữ', 'add_preset': 'Thêm nhân vật'
+      },
+      'en': {
+        'title': 'T-Funny Buddy', 'settings': 'Settings', 'save': 'Save Config',
+        'count': 'Quantity', 'speed': 'Speed', 'size': 'Size', 'click_through': 'Click Through',
+        'battery': 'Battery Saver', 'theme': 'Theme', 'lang': 'Language', 'add_preset': 'Add Preset'
+      }
+    };
+    return localized[locale.languageCode]?[key] ?? key;
+  }
+  
   CustomPreset? getActiveCustom() { try { return customPresets.firstWhere((p) => p.id == activeCustomPresetId); } catch (_) { return null; } }
 }

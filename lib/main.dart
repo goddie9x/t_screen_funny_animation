@@ -10,7 +10,28 @@ import 'widgets/t_funny_buddy.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppConfig.instance.load();
-  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: HomeScreen()));
+  runApp(const TFunnyApp());
+}
+
+class TFunnyApp extends StatelessWidget {
+  const TFunnyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AppConfig.instance,
+      builder: (context, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: AppConfig.instance.translate('title'),
+          themeMode: AppConfig.instance.themeMode,
+          theme: ThemeData(useMaterial3: true, brightness: Brightness.light),
+          darkTheme: ThemeData(useMaterial3: true, brightness: Brightness.dark),
+          home: const HomeScreen(),
+        );
+      },
+    );
+  }
 }
 
 @pragma("vm:entry-point")
