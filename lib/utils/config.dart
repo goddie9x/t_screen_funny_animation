@@ -1,4 +1,5 @@
 ﻿import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
@@ -14,77 +15,59 @@ class CustomPreset {
 class AppConfig extends ChangeNotifier {
   static final AppConfig instance = AppConfig._internal();
   AppConfig._internal();
-
-  int shimejiCount = 1; double speedMultiplier = 0.5; int actionFrequency = 3; double sizeMultiplier = 1.0;
-  bool isClickThrough = true; bool pauseOnScreenOff = true; 
-  String mode = 'preset'; int presetId = 0; String? activeCustomPresetId;
+  int shimejiCount = 1; double speedMultiplier = 0.5; double sizeMultiplier = 1.0; int actionFrequency = 3;
+  bool isClickThrough = false; bool pauseOnScreenOff = true;
+  ThemeMode themeMode = ThemeMode.system; Locale locale = const Locale('vi');
+  String mode = 'preset'; String? activeCustomPresetId;
   List<CustomPreset> customPresets = [];
-
-  // Theme & Language
-  ThemeMode themeMode = ThemeMode.system;
-  Locale locale = const Locale('vi');
-
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     shimejiCount = prefs.getInt('count') ?? 1;
     speedMultiplier = prefs.getDouble('speed') ?? 0.5;
-    actionFrequency = prefs.getInt('freq') ?? 3;
     sizeMultiplier = prefs.getDouble('size') ?? 1.0;
-    isClickThrough = prefs.getBool('clickThrough') ?? true;
+    actionFrequency = prefs.getInt('freq') ?? 3;
+    isClickThrough = prefs.getBool('clickThrough') ?? false;
     pauseOnScreenOff = prefs.getBool('pauseOnScreenOff') ?? true;
-    mode = prefs.getString('mode') ?? 'preset';
-    presetId = prefs.getInt('presetId') ?? 0;
     activeCustomPresetId = prefs.getString('activeCustomPresetId');
-    
     String themeStr = prefs.getString('themeMode') ?? 'system';
     themeMode = themeStr == 'light' ? ThemeMode.light : (themeStr == 'dark' ? ThemeMode.dark : ThemeMode.system);
     locale = Locale(prefs.getString('lang') ?? 'vi');
-
-    List<String>? savedPresets = prefs.getStringList('customPresets');
-    if (savedPresets != null) customPresets = savedPresets.map((e) => CustomPreset.fromJson(jsonDecode(e))).toList();
+    List<String>? saved = prefs.getStringList('customPresets');
+    if (saved != null) customPresets = saved.map((e) => CustomPreset.fromJson(jsonDecode(e))).toList();
     notifyListeners();
   }
-
   Future<void> save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('count', shimejiCount);
     await prefs.setDouble('speed', speedMultiplier);
-    await prefs.setInt('freq', actionFrequency);
     await prefs.setDouble('size', sizeMultiplier);
+    await prefs.setInt('freq', actionFrequency);
     await prefs.setBool('clickThrough', isClickThrough);
     await prefs.setBool('pauseOnScreenOff', pauseOnScreenOff);
     await prefs.setString('themeMode', themeMode == ThemeMode.light ? 'light' : (themeMode == ThemeMode.dark ? 'dark' : 'system'));
     await prefs.setString('lang', locale.languageCode);
-    await prefs.setString('mode', mode);
-    await prefs.setInt('presetId', presetId);
-    if(activeCustomPresetId != null) await prefs.setString('activeCustomPresetId', activeCustomPresetId!);
+    if (activeCustomPresetId != null) await prefs.setString('activeCustomPresetId', activeCustomPresetId!);
     await prefs.setStringList('customPresets', customPresets.map((e) => jsonEncode(e.toJson())).toList());
-    
-    if (await FlutterOverlayWindow.isActive()) {
-      await FlutterOverlayWindow.updateFlag(isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag);
-      await FlutterOverlayWindow.shareData('reload');
+    if (Platform.isAndroid) {
+      try {
+        if (await FlutterOverlayWindow.isActive()) {
+          await FlutterOverlayWindow.updateFlag(isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag);
+          await FlutterOverlayWindow.shareData('reload');
+        }
+      } catch (_) {}
     }
     notifyListeners();
   }
-  
   void toggleTheme(ThemeMode m) { themeMode = m; save(); }
   void toggleLang(Locale l) { locale = l; save(); }
-  
-  String translate(String key) {
+  String translate(String k) {
     Map<String, Map<String, String>> localized = {
-      'vi': {
-        'title': 'Bạn Đồng Hành T-Funny', 'settings': 'Cài đặt', 'save': 'Lưu cấu hình',
-        'count': 'Số lượng', 'speed': 'Tốc độ', 'size': 'Kích thước', 'click_through': 'Xuyên thấu',
-        'battery': 'Tiết kiệm pin', 'theme': 'Giao diện', 'lang': 'Ngôn ngữ', 'add_preset': 'Thêm nhân vật'
-      },
-      'en': {
-        'title': 'T-Funny Buddy', 'settings': 'Settings', 'save': 'Save Config',
-        'count': 'Quantity', 'speed': 'Speed', 'size': 'Size', 'click_through': 'Click Through',
-        'battery': 'Battery Saver', 'theme': 'Theme', 'lang': 'Language', 'add_preset': 'Add Preset'
-      }
+      'vi': {'title': 'TScreen Funny Animation', 'settings': 'Cài đặt', 'save': 'Lưu cấu hình', 'theme': 'Giao diện', 'lang': 'Ngôn ngữ', 'add_preset': 'Thêm nhân vật', 'count': 'Số lượng', 'speed': 'Tốc độ', 'size': 'Kích thước', 'click_through': 'Xuyên thấu', 'battery': 'Tiết kiệm pin'},
+      'en': {'title': 'TScreen Funny Animation', 'settings': 'Settings', 'save': 'Save Config', 'theme': 'Theme', 'lang': 'Language', 'add_preset': 'Add Preset', 'count': 'Quantity', 'speed': 'Speed', 'size': 'Size', 'click_through': 'Click Through', 'battery': 'Battery Saver'}
     };
-    return localized[locale.languageCode]?[key] ?? key;
+    return localized[locale.languageCode]?[k] ?? k;
   }
-  
-  CustomPreset? getActiveCustom() { try { return customPresets.firstWhere((p) => p.id == activeCustomPresetId); } catch (_) { return null; } }
+  CustomPreset? getActiveCustom() {
+    try { return customPresets.firstWhere((p) => p.id == activeCustomPresetId); } catch (_) { return null; }
+  }
 }
