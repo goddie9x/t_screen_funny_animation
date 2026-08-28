@@ -5,11 +5,55 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 class CustomPreset {
-  String id; String name;
-  String? headImg, bodyImg, armUpperImg, armLowerImg, legUpperImg, legLowerImg;
-  CustomPreset({required this.id, required this.name, this.headImg, this.bodyImg, this.armUpperImg, this.armLowerImg, this.legUpperImg, this.legLowerImg});
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'headImg': headImg, 'bodyImg': bodyImg, 'armUpperImg': armUpperImg, 'armLowerImg': armLowerImg, 'legUpperImg': legUpperImg, 'legLowerImg': legLowerImg};
-  factory CustomPreset.fromJson(Map<String, dynamic> j) => CustomPreset(id: j['id'], name: j['name'], headImg: j['headImg'], bodyImg: j['bodyImg'], armUpperImg: j['armUpperImg'], armLowerImg: j['armLowerImg'], legUpperImg: j['legUpperImg'], legLowerImg: j['legLowerImg']);
+  String id;
+  String name;
+  String? headImg;
+  String? bodyImg;
+  String? armUpperImg;
+  String? armLowerImg;
+  String? handImg;
+  String? legUpperImg;
+  String? legLowerImg;
+  String? footImg;
+
+  CustomPreset({
+    required this.id,
+    required this.name,
+    this.headImg,
+    this.bodyImg,
+    this.armUpperImg,
+    this.armLowerImg,
+    this.handImg,
+    this.legUpperImg,
+    this.legLowerImg,
+    this.footImg,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'headImg': headImg,
+        'bodyImg': bodyImg,
+        'armUpperImg': armUpperImg,
+        'armLowerImg': armLowerImg,
+        'handImg': handImg,
+        'legUpperImg': legUpperImg,
+        'legLowerImg': legLowerImg,
+        'footImg': footImg,
+      };
+
+  factory CustomPreset.fromJson(Map<String, dynamic> j) => CustomPreset(
+        id: j['id'],
+        name: j['name'],
+        headImg: j['headImg'],
+        bodyImg: j['bodyImg'],
+        armUpperImg: j['armUpperImg'],
+        armLowerImg: j['armLowerImg'],
+        handImg: j['handImg'],
+        legUpperImg: j['legUpperImg'],
+        legLowerImg: j['legLowerImg'],
+        footImg: j['footImg'],
+      );
 }
 
 class AppConfig extends ChangeNotifier {
@@ -29,6 +73,7 @@ class AppConfig extends ChangeNotifier {
     isClickThrough = prefs.getBool('clickThrough') ?? true;
     pauseOnScreenOff = prefs.getBool('pauseOnScreenOff') ?? true;
     buddyOnScreen = prefs.getBool('buddyOnScreen') ?? true;
+    mode = prefs.getString('mode') ?? 'preset';
     activeCustomPresetId = prefs.getString('activeCustomPresetId');
     String themeStr = prefs.getString('themeMode') ?? 'system';
     themeMode = themeStr == 'light' ? ThemeMode.light : (themeStr == 'dark' ? ThemeMode.dark : ThemeMode.system);
@@ -46,9 +91,14 @@ class AppConfig extends ChangeNotifier {
     await prefs.setBool('clickThrough', isClickThrough);
     await prefs.setBool('pauseOnScreenOff', pauseOnScreenOff);
     await prefs.setBool('buddyOnScreen', buddyOnScreen);
+    await prefs.setString('mode', mode);
     await prefs.setString('themeMode', themeMode == ThemeMode.light ? 'light' : (themeMode == ThemeMode.dark ? 'dark' : 'system'));
     await prefs.setString('lang', locale.languageCode);
-    if (activeCustomPresetId != null) await prefs.setString('activeCustomPresetId', activeCustomPresetId!);
+    if (activeCustomPresetId != null) {
+      await prefs.setString('activeCustomPresetId', activeCustomPresetId!);
+    } else {
+      await prefs.remove('activeCustomPresetId');
+    }
     await prefs.setStringList('customPresets', customPresets.map((e) => jsonEncode(e.toJson())).toList());
     if (Platform.isAndroid) {
       try {
@@ -81,6 +131,25 @@ class AppConfig extends ChangeNotifier {
         'tray_open': 'Mở ứng dụng',
         'tray_settings': 'Cài đặt',
         'tray_exit': 'Thoát',
+        'part_head': 'Đầu',
+        'part_body': 'Thân',
+        'part_arm_upper': 'Bắp tay',
+        'part_arm_lower': 'Cẳng tay',
+        'part_hand': 'Bàn tay',
+        'part_leg_upper': 'Đùi',
+        'part_leg_lower': 'Cẳng chân',
+        'part_foot': 'Bàn chân',
+        'joint_head': 'Nối cổ',
+        'joint_body': 'Thân / hông',
+        'joint_shoulder': 'Khớp vai → khuỷu',
+        'joint_elbow': 'Khớp khuỷu → cổ tay',
+        'joint_wrist': 'Khớp cổ tay',
+        'joint_hip': 'Khớp háng → gối',
+        'joint_knee': 'Khớp gối → cổ chân',
+        'joint_ankle': 'Khớp cổ chân',
+        'parts_torso': 'Đầu & thân',
+        'parts_arm': 'Tay (vai, khuỷu, cổ tay)',
+        'parts_leg': 'Chân (háng, gối, cổ chân)',
       },
       'en': {
         'title': 'TScreen Funny Animation',
@@ -99,6 +168,25 @@ class AppConfig extends ChangeNotifier {
         'tray_open': 'Open app',
         'tray_settings': 'Settings',
         'tray_exit': 'Exit',
+        'part_head': 'Head',
+        'part_body': 'Body',
+        'part_arm_upper': 'Upper arm',
+        'part_arm_lower': 'Forearm',
+        'part_hand': 'Hand',
+        'part_leg_upper': 'Thigh',
+        'part_leg_lower': 'Shin',
+        'part_foot': 'Foot',
+        'joint_head': 'Neck joint',
+        'joint_body': 'Torso / hips',
+        'joint_shoulder': 'Shoulder → elbow',
+        'joint_elbow': 'Elbow → wrist',
+        'joint_wrist': 'Wrist joint',
+        'joint_hip': 'Hip → knee',
+        'joint_knee': 'Knee → ankle',
+        'joint_ankle': 'Ankle joint',
+        'parts_torso': 'Head & body',
+        'parts_arm': 'Arms (shoulder, elbow, wrist)',
+        'parts_leg': 'Legs (hip, knee, ankle)',
       },
     };
     return localized[locale.languageCode]?[k] ?? k;

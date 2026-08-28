@@ -241,11 +241,20 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     final walk = sin(t * pi * 2);
     final climb = sin(t * pi * 4);
     final idle = sin(t * pi * 2);
-    final cp = AppConfig.instance.getActiveCustom();
-    final isCus = AppConfig.instance.mode == 'custom';
+    final custom = AppConfig.instance.mode == 'custom' ? AppConfig.instance.getActiveCustom() : null;
+    final headImg = custom?.headImg;
+    final bodyImg = custom?.bodyImg;
+    final armUpImg = custom?.armUpperImg;
+    final armLowImg = custom?.armLowerImg;
+    final handImg = custom?.handImg;
+    final legUpImg = custom?.legUpperImg;
+    final legLowImg = custom?.legLowerImg;
+    final footImg = custom?.footImg;
 
     double fArmUp = 0.04, bArmUp = -0.04, fArmLow = 0.1, bArmLow = 0.1;
+    double fHand = 0.08, bHand = 0.08;
     double fLegUp = 0.02, bLegUp = -0.02, fLegLow = 0.08, bLegLow = 0.08;
+    double fFoot = 1.05, bFoot = 1.05;
     double bob = 0;
     double tilt = 0;
 
@@ -254,10 +263,14 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       bArmUp = walk * 0.9;
       fArmLow = -0.45 - walk.abs() * 0.25;
       bArmLow = -0.45 - walk.abs() * 0.25;
+      fHand = 0.18 + walk.abs() * 0.12;
+      bHand = 0.18 + walk.abs() * 0.12;
       fLegUp = -walk * 0.7;
       bLegUp = walk * 0.7;
       fLegLow = fLegUp < 0 ? 0.55 : 0.12;
       bLegLow = bLegUp < 0 ? 0.55 : 0.12;
+      fFoot = fLegUp < 0 ? 0.55 : 1.15;
+      bFoot = bLegUp < 0 ? 0.55 : 1.15;
       bob = -walk.abs() * 5;
       tilt = walk * 0.05;
     } else if (mode == 'climb') {
@@ -265,10 +278,14 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       bArmUp = -1.7 - climb * 0.75;
       fArmLow = fArmUp < -1.8 ? 0.55 : -0.2;
       bArmLow = bArmUp < -1.8 ? 0.55 : -0.2;
+      fHand = 0.55;
+      bHand = 0.55;
       fLegUp = -0.7 - climb * 0.65;
       bLegUp = -0.7 + climb * 0.65;
       fLegLow = fLegUp < -0.9 ? 1.05 : 0.5;
       bLegLow = bLegUp < -0.9 ? 1.05 : 0.5;
+      fFoot = 0.85;
+      bFoot = 0.85;
       bob = -climb.abs() * 2;
       tilt = 0.1;
     } else if (mode == 'drag' || mode == 'fall') {
@@ -277,20 +294,28 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       bArmUp = pi + 0.35 - flap * 0.25;
       fArmLow = 0.35;
       bArmLow = 0.35;
+      fHand = 0.25;
+      bHand = 0.25;
       fLegUp = 0.45 + flap * 0.2;
       bLegUp = -0.45 - flap * 0.2;
       fLegLow = 0.25;
       bLegLow = 0.25;
+      fFoot = 0.7;
+      bFoot = 0.7;
       tilt = mode == 'fall' ? flap * 0.12 : 0.08;
     } else {
       fArmUp = 0.05;
       bArmUp = -0.05;
       fArmLow = 0.1;
       bArmLow = 0.1;
+      fHand = 0.08;
+      bHand = 0.08;
       fLegUp = 0.02;
       bLegUp = -0.02;
       fLegLow = 0.08;
       bLegLow = 0.08;
+      fFoot = 1.05;
+      bFoot = 1.05;
       bob = idle * 1.4;
       tilt = 0;
     }
@@ -331,13 +356,13 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      _limb(false, bArmUp, bArmLow, isCus ? cp?.armUpperImg : null, isCus ? cp?.armLowerImg : null),
-                      _leg(false, bLegUp, bLegLow, isCus ? cp?.legUpperImg : null, isCus ? cp?.legLowerImg : null),
+                      _limb(false, bArmUp, bArmLow, bHand, armUpImg, armLowImg, handImg),
+                      _leg(false, bLegUp, bLegLow, bFoot, legUpImg, legLowImg, footImg),
                       _part(
                         34,
                         52,
                         const Color(0xFF3B82F6),
-                        isCus ? cp?.bodyImg : null,
+                        bodyImg,
                         [
                           Positioned(
                             left: -7,
@@ -346,15 +371,15 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
                               48,
                               48,
                               const Color(0xFFF59E0B),
-                              isCus ? cp?.headImg : null,
-                              isCus && cp?.headImg != null ? const [] : [_BuddyFace(blink: blink)],
+                              headImg,
+                              headImg != null ? const [] : [_BuddyFace(blink: blink)],
                             ),
                           ),
                         ],
                         radius: 16,
                       ),
-                      _leg(true, fLegUp, fLegLow, isCus ? cp?.legUpperImg : null, isCus ? cp?.legLowerImg : null),
-                      _limb(true, fArmUp, fArmLow, isCus ? cp?.armUpperImg : null, isCus ? cp?.armLowerImg : null),
+                      _leg(true, fLegUp, fLegLow, fFoot, legUpImg, legLowImg, footImg),
+                      _limb(true, fArmUp, fArmLow, fHand, armUpImg, armLowImg, handImg),
                     ],
                   ),
                 ),
@@ -366,31 +391,51 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     );
   }
 
-  Widget _limb(bool near, double upR, double lowR, String? up, String? low) {
+  Widget _limb(bool near, double upR, double lowR, double handR, String? up, String? low, String? hand) {
     return Positioned(
       left: near ? -10 : 28,
       top: 2,
       child: _joint(13, 28, const Color(0xFF64748B), upR, up, [
-        Positioned(left: 1, top: 23, child: _joint(11, 24, const Color(0xFF94A3B8), lowR, low, const [])),
+        Positioned(
+          left: 1,
+          top: 22,
+          child: _joint(11, 24, const Color(0xFF94A3B8), lowR, low, [
+            Positioned(
+              left: -1,
+              top: 19,
+              child: _joint(13, 14, const Color(0xFFCBD5E1), handR, hand, const [], radius: 5),
+            ),
+          ]),
+        ),
       ]),
     );
   }
 
-  Widget _leg(bool near, double upR, double lowR, String? up, String? low) {
+  Widget _leg(bool near, double upR, double lowR, double footR, String? up, String? low, String? foot) {
     return Positioned(
       left: near ? 4 : 16,
       top: 44,
       child: _joint(14, 30, const Color(0xFF92400E), upR, up, [
-        Positioned(left: 1, top: 24, child: _joint(12, 26, const Color(0xFFB45309), lowR, low, const [])),
+        Positioned(
+          left: 1,
+          top: 24,
+          child: _joint(12, 26, const Color(0xFFB45309), lowR, low, [
+            Positioned(
+              left: -2,
+              top: 20,
+              child: _joint(18, 10, const Color(0xFFD97706), footR, foot, const [], radius: 4),
+            ),
+          ]),
+        ),
       ]),
     );
   }
 
-  Widget _joint(double w, double h, Color c, double r, String? img, List<Widget> children) {
+  Widget _joint(double w, double h, Color c, double r, String? img, List<Widget> children, {double radius = 8}) {
     return Transform.rotate(
       angle: r,
       alignment: Alignment.topCenter,
-      child: _part(w, h, c, img, children),
+      child: _part(w, h, c, img, children, radius: radius),
     );
   }
 
