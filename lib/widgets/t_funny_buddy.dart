@@ -146,22 +146,16 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
       if (posX <= left) {
         posX = left;
-        if (mode == 'walk' && posY > 48) {
-          mode = 'climb';
-          _wall = -1;
-          velX = 0;
-          isLeft = true;
+        if ((mode == 'walk' || mode == 'fall') && posY > 40) {
+          _startClimb(-1);
         } else if (mode != 'climb') {
           isLeft = false;
           if (mode == 'walk') velX = _walkSpeed;
         }
       } else if (posX >= right) {
         posX = right;
-        if (mode == 'walk' && posY > 48) {
-          mode = 'climb';
-          _wall = 1;
-          velX = 0;
-          isLeft = false;
+        if ((mode == 'walk' || mode == 'fall') && posY > 40) {
+          _startClimb(1);
         } else if (mode != 'climb') {
           isLeft = true;
           if (mode == 'walk') velX = -_walkSpeed;
@@ -178,6 +172,34 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
       _reportHit();
     });
+  }
+
+  bool _startClimb(int wall) {
+    mode = 'climb';
+    _wall = wall;
+    velX = 0;
+    velY = 0;
+    isLeft = wall < 0;
+    return true;
+  }
+
+  bool _grabEdgeIfClose() {
+    final s = MediaQuery.sizeOf(context);
+    final w = _spriteW * _scale;
+    final h = _spriteH * _scale;
+    final left = 0.0;
+    final right = max(0.0, s.width - w);
+    const edge = 64.0;
+    if (posY <= 36 || posY >= s.height - h - 8) return false;
+    if (posX <= left + edge) {
+      posX = left;
+      return _startClimb(-1);
+    }
+    if (posX >= right - edge) {
+      posX = right;
+      return _startClimb(1);
+    }
+    return false;
   }
 
   @override
@@ -212,12 +234,14 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
           }),
           onPanEnd: (d) => setState(() {
             if (BuddyHitRegistry.dragging > 0) BuddyHitRegistry.dragging--;
+            if (_grabEdgeIfClose()) return;
             mode = 'fall';
             velX = (d.velocity.pixelsPerSecond.dx / 90).clamp(-18, 18);
             velY = (d.velocity.pixelsPerSecond.dy / 90).clamp(-18, 18);
           }),
           onPanCancel: () => setState(() {
             if (BuddyHitRegistry.dragging > 0) BuddyHitRegistry.dragging--;
+            if (_grabEdgeIfClose()) return;
             mode = 'fall';
           }),
           child: MouseRegion(
@@ -272,25 +296,25 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       bArmLow = -0.42 - bArmUp.abs() * 0.06;
       fHand = -0.1;
       bHand = -0.1;
-      fFoot = -fLegUp - fLegLow + (hipF > 0 ? 0.18 : 0.02);
-      bFoot = -bLegUp - bLegLow + (hipB > 0 ? 0.18 : 0.02);
+      fFoot = 0;
+      bFoot = 0;
       bob = (1 - cos(g * 2)) * -2.0;
       tilt = sin(g) * 0.03;
     } else if (mode == 'climb') {
       final g = sec * 2 * pi * 1.6;
       final reach = sin(g);
-      fArmUp = -(2.05 + reach * 0.32);
-      bArmUp = -(2.2 - reach * 0.32);
-      fArmLow = -0.5;
-      bArmLow = -0.5;
-      fHand = -0.12;
-      bHand = -0.12;
-      fLegUp = -(0.32 + reach * 0.22);
-      bLegUp = -(0.4 - reach * 0.22);
-      fLegLow = 0.72;
-      bLegLow = 0.72;
-      fFoot = -fLegUp - fLegLow + 0.12;
-      bFoot = -bLegUp - bLegLow + 0.12;
+      fArmUp = -1.55 - reach * 0.4;
+      bArmUp = -1.85 + reach * 0.4;
+      fArmLow = -0.28;
+      bArmLow = -0.28;
+      fHand = -0.06;
+      bHand = -0.06;
+      fLegUp = -0.55 - reach * 0.28;
+      bLegUp = -0.78 + reach * 0.28;
+      fLegLow = 0.62;
+      bLegLow = 0.62;
+      fFoot = -0.15;
+      bFoot = -0.15;
       bob = -reach.abs() * 1.2;
       tilt = 0.04;
       headTilt = 0.08;
@@ -307,8 +331,8 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       bLegUp = -0.45 + sin(g + 2.1) * 0.65;
       fLegLow = 0.5 + sin(g + 0.4).abs() * 0.2;
       bLegLow = 0.5 + sin(g + 1.6).abs() * 0.2;
-      fFoot = -fLegUp - fLegLow + 0.12;
-      bFoot = -bLegUp - bLegLow + 0.12;
+      fFoot = 0.08;
+      bFoot = 0.08;
       tilt = mode == 'fall' ? sin(g * 0.5) * 0.16 : 0.05;
     } else {
       final idle = sin(sec * 2 * pi * 0.45);
@@ -322,8 +346,8 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       bLegUp = -0.04;
       fLegLow = 0.16;
       bLegLow = 0.16;
-      fFoot = -fLegUp - fLegLow + 0.02;
-      bFoot = -bLegUp - bLegLow + 0.02;
+      fFoot = 0;
+      bFoot = 0;
       bob = idle * 0.7;
       tilt = 0;
     }
@@ -337,7 +361,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
         alignment: Alignment.center,
         transform: Matrix4.diagonal3Values(isLeft ? -1.0 : 1.0, 1.0, 1.0),
         child: Transform.translate(
-          offset: Offset(mode == 'climb' ? 7 : 0, bob),
+          offset: Offset(mode == 'climb' ? 14 : 0, bob),
           child: Transform.rotate(
             angle: tilt,
             child: Stack(
@@ -364,8 +388,8 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      _limb(false, bArmUp, bArmLow, bHand, armUpImg, armLowImg, handImg),
-                      _leg(false, bLegUp, bLegLow, bFoot, legUpImg, legLowImg, footImg),
+                      _limb(false, bArmUp, bArmLow, bHand, armUpImg, armLowImg, handImg, dx: mode == 'climb' ? 4 : 0),
+                      _leg(false, bLegUp, bLegLow, bFoot, legUpImg, legLowImg, footImg, dx: mode == 'climb' ? 8 : 0),
                       _part(
                         34,
                         52,
@@ -390,8 +414,8 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
                         ],
                         radius: 16,
                       ),
-                      _leg(true, fLegUp, fLegLow, fFoot, legUpImg, legLowImg, footImg),
-                      _limb(true, fArmUp, fArmLow, fHand, armUpImg, armLowImg, handImg),
+                      _leg(true, fLegUp, fLegLow, fFoot, legUpImg, legLowImg, footImg, dx: mode == 'climb' ? 10 : 0),
+                      _limb(true, fArmUp, fArmLow, fHand, armUpImg, armLowImg, handImg, dx: mode == 'climb' ? 18 : 0),
                     ],
                   ),
                 ),
@@ -403,9 +427,9 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     );
   }
 
-  Widget _limb(bool near, double upR, double lowR, double handR, String? up, String? low, String? hand) {
+  Widget _limb(bool near, double upR, double lowR, double handR, String? up, String? low, String? hand, {double dx = 0}) {
     return Positioned(
-      left: near ? -10 : 28,
+      left: (near ? -10.0 : 28.0) + dx,
       top: 2,
       child: _joint(13, 28, const Color(0xFF64748B), upR, up, [
         Positioned(
@@ -423,9 +447,9 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     );
   }
 
-  Widget _leg(bool near, double upR, double lowR, double footR, String? up, String? low, String? foot) {
+  Widget _leg(bool near, double upR, double lowR, double footR, String? up, String? low, String? foot, {double dx = 0}) {
     return Positioned(
-      left: near ? 4 : 16,
+      left: (near ? 4.0 : 16.0) + dx,
       top: 44,
       child: _joint(14, 30, const Color(0xFF92400E), upR, up, [
         Positioned(
@@ -433,16 +457,16 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
           top: 24,
           child: _joint(12, 26, const Color(0xFFB45309), lowR, low, [
             Positioned(
-              left: 5,
-              top: 20,
+              left: 3,
+              top: 22,
               child: _joint(
-                16,
-                7,
+                15,
+                8,
                 const Color(0xFFD97706),
                 footR,
                 foot,
                 const [],
-                radius: 3,
+                radius: 4,
                 alignment: Alignment.centerLeft,
               ),
             ),
