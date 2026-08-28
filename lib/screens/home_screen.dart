@@ -6,9 +6,12 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:screen_retriever/screen_retriever.dart';
+import 'package:tray_manager/tray_manager.dart';
 import '../utils/config.dart';
 import '../widgets/t_funny_buddy.dart';
 import 'settings_screen.dart';
+
+const _appChannel = MethodChannel('com.god.tscreenfunny/app');
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,10 +19,12 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListener {
   bool isWindowsOverlay = false;
   bool _showHint = false;
   bool _passthrough = true;
+  bool _openingSettings = false;
+  bool _lastBuddyOnScreen = true;
   Offset _overlayOrigin = Offset.zero;
   Timer? _hitTimer;
 
@@ -27,11 +32,48 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     AppConfig.instance.addListener(_onConfig);
+    _lastBuddyOnScreen = AppConfig.instance.buddyOnScreen;
+    windowManager.addListener(this);
+    trayManager.addListener(this);
     _initHotkey();
+    _initTray();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    if (!mounted) return;
+    if (AppConfig.instance.buddyOnScreen) {
+      await _enableBuddyOnScreen(fromStart: true);
+    }
   }
 
   void _onConfig() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    final want = AppConfig.instance.buddyOnScreen;
+    if (want != _lastBuddyOnScreen) {
+      _lastBuddyOnScreen = want;
+      _syncOverlayWithSetting();
+    }
+    _rebuildTrayMenu();
+  }
+
+  Future<void> _syncOverlayWithSetting() async {
+    final want = AppConfig.instance.buddyOnScreen;
+    if (Platform.isWindows) {
+      if (want && !isWindowsOverlay && !_openingSettings) {
+        await _enableBuddyOnScreen();
+      } else if (!want && isWindowsOverlay) {
+        await _disableBuddyOnScreen();
+      }
+    } else if (Platform.isAndroid) {
+      final active = await FlutterOverlayWindow.isActive();
+      if (want && !active) {
+        await _enableBuddyOnScreen();
+      } else if (!want && active) {
+        await FlutterOverlayWindow.closeOverlay();
+      }
+    }
   }
 
   void _initHotkey() async {
@@ -41,7 +83,90 @@ class _HomeScreenState extends State<HomeScreen> {
       modifiers: [HotKeyModifier.control, HotKeyModifier.shift],
       scope: HotKeyScope.system,
     );
-    await hotKeyManager.register(hk, keyDownHandler: (_) => _toggleOverlay());
+    await hotKeyManager.register(hk, keyDownHandler: (_) => _showAppWindow());
+  }
+
+  Future<void> _initTray() async {
+    if (!Platform.isWindows) return;
+    try {
+      await trayManager.setIcon('windows/runner/resources/app_icon.ico');
+      await trayManager.setToolTip(AppConfig.instance.translate('title'));
+      await _rebuildTrayMenu();
+    } catch (_) {
+      try {
+        await trayManager.setIcon('assets/icon/app_icon.png');
+        await _rebuildTrayMenu();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _rebuildTrayMenu() async {
+    if (!Platform.isWindows) return;
+    final cfg = AppConfig.instance;
+    await trayManager.setContextMenu(Menu(items: [
+      MenuItem(key: 'show', label: cfg.translate('tray_open')),
+      MenuItem(key: 'settings', label: cfg.translate('tray_settings')),
+      MenuItem.separator(),
+      MenuItem(
+        key: 'overlay',
+        label: cfg.translate('overlay_mode'),
+        checked: cfg.buddyOnScreen,
+      ),
+      MenuItem.separator(),
+      MenuItem(key: 'exit', label: cfg.translate('tray_exit')),
+    ]));
+  }
+
+  @override
+  void onTrayIconMouseDown() => _showAppWindow();
+
+  @override
+  void onTrayIconRightMouseDown() => trayManager.popUpContextMenu();
+
+  @override
+  void onTrayMenuItemClick(MenuItem item) {
+    switch (item.key) {
+      case 'show':
+        _showAppWindow();
+        break;
+      case 'settings':
+        _openSettings();
+        break;
+      case 'overlay':
+        _toggleBuddySetting();
+        break;
+      case 'exit':
+        _quitApp();
+        break;
+    }
+  }
+
+  @override
+  void onWindowClose() async {
+    if (AppConfig.instance.buddyOnScreen) {
+      await _enableBuddyOnScreen();
+    } else {
+      await _quitApp();
+    }
+  }
+
+  Future<void> _quitApp() async {
+    if (Platform.isWindows) {
+      await windowManager.setPreventClose(false);
+      await trayManager.destroy();
+      await windowManager.destroy();
+    } else if (Platform.isAndroid) {
+      if (await FlutterOverlayWindow.isActive()) {
+        await FlutterOverlayWindow.closeOverlay();
+      }
+      SystemNavigator.pop();
+    }
+  }
+
+  Future<void> _toggleBuddySetting() async {
+    final cfg = AppConfig.instance;
+    cfg.buddyOnScreen = !cfg.buddyOnScreen;
+    await cfg.save();
   }
 
   Future<void> _enterDesktopOverlay() async {
@@ -60,6 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _overlayOrigin = origin;
     _passthrough = true;
     await windowManager.setIgnoreMouseEvents(true);
+    await windowManager.show();
     _startHitTest();
   }
 
@@ -101,26 +227,96 @@ class _HomeScreenState extends State<HomeScreen> {
     await windowManager.setMinimumSize(const Size(400, 300));
     await windowManager.setSize(const Size(800, 600));
     await windowManager.center();
+    await windowManager.show();
+    await windowManager.focus();
   }
 
-  void _toggleOverlay() async {
-    if (!Platform.isWindows) return;
-    if (isWindowsOverlay) {
+  Future<void> _enableBuddyOnScreen({bool fromStart = false}) async {
+    if (Platform.isWindows) {
+      if (isWindowsOverlay) return;
+      await _enterDesktopOverlay();
+      if (!mounted) return;
+      setState(() {
+        isWindowsOverlay = true;
+        _showHint = fromStart;
+      });
+      if (fromStart) {
+        Future.delayed(const Duration(seconds: 4), () {
+          if (mounted) setState(() => _showHint = false);
+        });
+      }
+      await _rebuildTrayMenu();
+    } else if (Platform.isAndroid) {
+      var granted = await FlutterOverlayWindow.isPermissionGranted();
+      if (!granted) {
+        await FlutterOverlayWindow.requestPermission();
+        granted = await FlutterOverlayWindow.isPermissionGranted();
+      }
+      if (!granted) return;
+      if (await FlutterOverlayWindow.isActive()) {
+        await _moveAndroidToBack();
+        return;
+      }
+      await FlutterOverlayWindow.showOverlay(
+        flag: AppConfig.instance.isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag,
+        alignment: OverlayAlignment.center,
+        visibility: NotificationVisibility.visibilityPublic,
+        overlayTitle: AppConfig.instance.translate('title'),
+        overlayContent: AppConfig.instance.translate('overlay_mode'),
+        height: WindowSize.matchParent,
+        width: WindowSize.matchParent,
+      );
+      await _moveAndroidToBack();
+    }
+  }
+
+  Future<void> _disableBuddyOnScreen() async {
+    if (Platform.isWindows) {
+      if (!isWindowsOverlay) return;
       setState(() {
         isWindowsOverlay = false;
         _showHint = false;
       });
       await _leaveDesktopOverlay();
-    } else {
-      await _enterDesktopOverlay();
-      if (!mounted) return;
-      setState(() {
-        isWindowsOverlay = true;
-        _showHint = true;
-      });
-      Future.delayed(const Duration(seconds: 4), () {
-        if (mounted) setState(() => _showHint = false);
-      });
+      await _rebuildTrayMenu();
+    } else if (Platform.isAndroid) {
+      if (await FlutterOverlayWindow.isActive()) {
+        await FlutterOverlayWindow.closeOverlay();
+      }
+    }
+  }
+
+  Future<void> _moveAndroidToBack() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _appChannel.invokeMethod('moveToBack');
+    } catch (_) {}
+  }
+
+  Future<void> _showAppWindow() async {
+    if (Platform.isWindows) {
+      _openingSettings = true;
+      if (isWindowsOverlay) {
+        setState(() {
+          isWindowsOverlay = false;
+          _showHint = false;
+        });
+        await _leaveDesktopOverlay();
+      } else {
+        await windowManager.show();
+        await windowManager.focus();
+      }
+      _openingSettings = false;
+      await _rebuildTrayMenu();
+    }
+  }
+
+  Future<void> _openSettings() async {
+    await _showAppWindow();
+    if (!mounted) return;
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+    if (AppConfig.instance.buddyOnScreen && Platform.isWindows && mounted) {
+      await _enableBuddyOnScreen();
     }
   }
 
@@ -128,6 +324,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _hitTimer?.cancel();
     AppConfig.instance.removeListener(_onConfig);
+    windowManager.removeListener(this);
+    trayManager.removeListener(this);
     if (Platform.isWindows) hotKeyManager.unregisterAll();
     super.dispose();
   }
@@ -159,9 +357,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 left: 0,
                 right: 0,
                 child: IgnorePointer(
-                  child: Center(
-                    child: _OverlayHint(),
-                  ),
+                  child: Center(child: _OverlayHint()),
                 ),
               ),
           ],
@@ -169,53 +365,18 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F0F0),
+      backgroundColor: scheme.surface,
       appBar: AppBar(title: Text(AppConfig.instance.translate('title'))),
       body: Stack(
         children: [
-          const Center(child: Text('TScreen Preview Area')),
+          Center(child: Text(AppConfig.instance.translate('overlay_mode_hint'))),
           ..._buddies(overlay: false),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 50),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                ),
-                icon: const Icon(Icons.rocket_launch),
-                label: const Text(
-                  'KÍCH HOẠT BUDDY NGOÀI MÀN HÌNH',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                onPressed: () async {
-                  if (Platform.isAndroid) {
-                    final granted = await FlutterOverlayWindow.isPermissionGranted();
-                    if (!granted) await FlutterOverlayWindow.requestPermission();
-                    if (await FlutterOverlayWindow.isActive()) return;
-                    await FlutterOverlayWindow.showOverlay(
-                      flag: AppConfig.instance.isClickThrough
-                          ? OverlayFlag.clickThrough
-                          : OverlayFlag.defaultFlag,
-                      alignment: OverlayAlignment.center,
-                      visibility: NotificationVisibility.visibilitySecret,
-                      height: WindowSize.matchParent,
-                      width: WindowSize.matchParent,
-                    );
-                  } else if (Platform.isWindows) {
-                    _toggleOverlay();
-                  }
-                },
-              ),
-            ),
-          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+        onPressed: _openSettings,
         child: const Icon(Icons.settings),
       ),
     );
@@ -237,7 +398,7 @@ class _OverlayHint extends StatelessWidget {
         child: const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Text(
-            'Rê chuột vào buddy để kéo  •  Ctrl+Shift+Z để quay lại',
+            'Icon khay hệ thống để mở app  •  Ctrl+Shift+Z',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
           ),
         ),

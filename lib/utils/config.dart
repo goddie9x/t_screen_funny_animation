@@ -16,7 +16,7 @@ class AppConfig extends ChangeNotifier {
   static final AppConfig instance = AppConfig._internal();
   AppConfig._internal();
   int shimejiCount = 1; double speedMultiplier = 0.5; double sizeMultiplier = 1.0; int actionFrequency = 3;
-  bool isClickThrough = true; bool pauseOnScreenOff = true;
+  bool isClickThrough = true; bool pauseOnScreenOff = true; bool buddyOnScreen = true;
   ThemeMode themeMode = ThemeMode.system; Locale locale = const Locale('vi');
   String mode = 'preset'; String? activeCustomPresetId;
   List<CustomPreset> customPresets = [];
@@ -28,6 +28,7 @@ class AppConfig extends ChangeNotifier {
     actionFrequency = prefs.getInt('freq') ?? 3;
     isClickThrough = prefs.getBool('clickThrough') ?? true;
     pauseOnScreenOff = prefs.getBool('pauseOnScreenOff') ?? true;
+    buddyOnScreen = prefs.getBool('buddyOnScreen') ?? true;
     activeCustomPresetId = prefs.getString('activeCustomPresetId');
     String themeStr = prefs.getString('themeMode') ?? 'system';
     themeMode = themeStr == 'light' ? ThemeMode.light : (themeStr == 'dark' ? ThemeMode.dark : ThemeMode.system);
@@ -44,6 +45,7 @@ class AppConfig extends ChangeNotifier {
     await prefs.setInt('freq', actionFrequency);
     await prefs.setBool('clickThrough', isClickThrough);
     await prefs.setBool('pauseOnScreenOff', pauseOnScreenOff);
+    await prefs.setBool('buddyOnScreen', buddyOnScreen);
     await prefs.setString('themeMode', themeMode == ThemeMode.light ? 'light' : (themeMode == ThemeMode.dark ? 'dark' : 'system'));
     await prefs.setString('lang', locale.languageCode);
     if (activeCustomPresetId != null) await prefs.setString('activeCustomPresetId', activeCustomPresetId!);
@@ -74,6 +76,11 @@ class AppConfig extends ChangeNotifier {
         'size': 'Kích thước',
         'click_through': 'Xuyên thấu (click xuyên buddy)',
         'battery': 'Tiết kiệm pin',
+        'overlay_mode': 'Buddy ngoài màn hình',
+        'overlay_mode_hint': 'Mở app là chạy buddy nổi trên màn hình',
+        'tray_open': 'Mở ứng dụng',
+        'tray_settings': 'Cài đặt',
+        'tray_exit': 'Thoát',
       },
       'en': {
         'title': 'TScreen Funny Animation',
@@ -87,6 +94,11 @@ class AppConfig extends ChangeNotifier {
         'size': 'Size',
         'click_through': 'Click through',
         'battery': 'Battery Saver',
+        'overlay_mode': 'On-screen buddy',
+        'overlay_mode_hint': 'Start with buddy floating on the screen',
+        'tray_open': 'Open app',
+        'tray_settings': 'Settings',
+        'tray_exit': 'Exit',
       },
     };
     return localized[locale.languageCode]?[k] ?? k;
