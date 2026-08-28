@@ -8,23 +8,25 @@ import 'utils/config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppConfig.instance.load();
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
     await hotKeyManager.unregisterAll();
-    const windowOptions = WindowOptions(
-      size: Size(800, 600),
+    final overlay = AppConfig.instance.buddyOnScreen;
+    final windowOptions = WindowOptions(
+      size: const Size(800, 600),
       center: true,
       backgroundColor: Colors.transparent,
-      skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.normal,
+      skipTaskbar: overlay,
+      titleBarStyle: overlay ? TitleBarStyle.hidden : TitleBarStyle.normal,
     );
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.setBackgroundColor(Colors.transparent);
+      await windowManager.setPreventClose(true);
       await windowManager.show();
-      await windowManager.focus();
+      if (!overlay) await windowManager.focus();
     });
   }
-  await AppConfig.instance.load();
   runApp(const TFunnyApp());
 }
 
@@ -43,14 +45,15 @@ class TFunnyApp extends StatelessWidget {
           theme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.light,
-            scaffoldBackgroundColor: Colors.transparent,
-            canvasColor: Colors.transparent,
+            colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
           ),
           darkTheme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.dark,
-            scaffoldBackgroundColor: Colors.transparent,
-            canvasColor: Colors.transparent,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF2563EB),
+              brightness: Brightness.dark,
+            ),
           ),
           home: const HomeScreen(),
         );
@@ -67,6 +70,7 @@ void overlayMain() async {
     debugShowCheckedModeBanner: false,
     color: Colors.transparent,
     theme: ThemeData(
+      brightness: Brightness.dark,
       scaffoldBackgroundColor: Colors.transparent,
       canvasColor: Colors.transparent,
     ),

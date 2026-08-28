@@ -70,7 +70,7 @@ jobs:
           gh workflow run "Flutter CICD" --ref "$TARGET"
 
   windows:
-    if: github.ref_name == 'staging' || github.ref_name == 'prod'
+    if: github.ref_name == 'prod'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,17 +89,17 @@ jobs:
           Compress-Archive -Path "$src\*" -DestinationPath "TScreenFunnyAnimation-windows-x64.zip"
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-${{ github.ref_name }}
+          name: windows-prod
           path: TScreenFunnyAnimation-windows-x64.zip
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}-${{ github.ref_name }}
-          name: ${{ github.ref_name == 'prod' && 'Official Release' || 'Beta Build' }} v1.0.${{ github.run_number }}
-          prerelease: ${{ github.ref_name == 'staging' }}
+          tag_name: v1.0.${{ github.run_number }}
+          name: Official Release v1.0.${{ github.run_number }}
+          prerelease: false
           files: TScreenFunnyAnimation-windows-x64.zip
 
   android:
-    if: github.ref_name == 'staging' || github.ref_name == 'prod'
+    if: github.ref_name == 'prod'
     runs-on: ubuntu-latest
     environment: Prod
     env:
@@ -124,8 +124,12 @@ jobs:
             echo "Missing ANDROID_KEYSTORE_BASE64 (or KEYSTORE_BASE64) in environment Prod."
             exit 1
           fi
-          echo "$KEYSTORE" | base64 --decode > android/app/upload-keystore.jks
-      - name: Write key.properties
+          printf '%s' "$KEYSTORE" | tr -d '\r\n \t' | base64 --decode > android/app/upload-keystore.jks
+          if [ ! -s android/app/upload-keystore.jks ]; then
+            echo "Decoded keystore is empty. Check ANDROID_KEYSTORE_BASE64."
+            exit 1
+          fi
+      - name: Write key.properties and verify key
         env:
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -134,26 +138,146 @@ jobs:
           LEGACY_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           LEGACY_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          cat > android/key.properties << EOF
-          storePassword=${STORE_PASSWORD:-$LEGACY_STORE_PASSWORD}
-          keyPassword=${KEY_PASSWORD:-$LEGACY_KEY_PASSWORD}
-          keyAlias=${KEY_ALIAS:-${LEGACY_KEY_ALIAS:-upload}}
-          storeFile=upload-keystore.jks
-          EOF
+          python3 << 'PY'
+          import os
+          import subprocess
+          import tempfile
+          from pathlib import Path
+
+          def first(*names: str) -> str:
+              for name in names:
+                  value = (os.environ.get(name) or "").replace("\r", "").strip()
+                  if value:
+                      return value
+              return ""
+
+          store = first("STORE_PASSWORD", "LEGACY_STORE_PASSWORD")
+          key = first("KEY_PASSWORD", "LEGACY_KEY_PASSWORD") or store
+          alias = first("KEY_ALIAS", "LEGACY_KEY_ALIAS") or "upload"
+          keystore = Path("android/app/upload-keystore.jks")
+
+          if not store:
+              raise SystemExit("Missing ANDROID_KEYSTORE_PASSWORD in environment Prod.")
+
+          java = r"""
+          import java.io.FileInputStream;
+          import java.security.KeyStore;
+          import java.util.Enumeration;
+
+          public class VerifyKeystore {
+            public static void main(String[] args) throws Exception {
+              String file = System.getenv("KS_FILE");
+              String alias = System.getenv("KS_ALIAS");
+              char[] store = System.getenv("KS_STORE").toCharArray();
+              char[] key = System.getenv("KS_KEY").toCharArray();
+              Exception last = null;
+              for (String type : new String[] {"PKCS12", "JKS"}) {
+                try {
+                  KeyStore ks = KeyStore.getInstance(type);
+                  try (FileInputStream in = new FileInputStream(file)) {
+                    ks.load(in, store);
+                  }
+                  if (!ks.containsAlias(alias)) {
+                    System.err.println("Alias not found. Available aliases:");
+                    Enumeration<String> aliases = ks.aliases();
+                    while (aliases.hasMoreElements()) {
+                      System.err.println(" - " + aliases.nextElement());
+                    }
+                    System.err.println("Fix ANDROID_KEY_ALIAS in environment Prod.");
+                    System.exit(2);
+                  }
+                  if (ks.getKey(alias, key) == null) {
+                    System.err.println("Private key is empty for this alias.");
+                    System.exit(3);
+                  }
+                  System.out.println("Keystore OK (" + type + ")");
+                  System.exit(0);
+                } catch (java.security.UnrecoverableKeyException e) {
+                  System.err.println("Cannot recover key: ANDROID_KEY_PASSWORD is wrong.");
+                  System.err.println("If the upload keystore is PKCS12 (Java 9+ default), ANDROID_KEY_PASSWORD must equal ANDROID_KEYSTORE_PASSWORD.");
+                  System.exit(3);
+                } catch (java.io.IOException e) {
+                  last = e;
+                }
+              }
+              System.err.println("Cannot open keystore. Check ANDROID_KEYSTORE_PASSWORD and ANDROID_KEYSTORE_BASE64.");
+              if (last != null) System.err.println(last.getMessage());
+              System.exit(1);
+            }
+          }
+          """
+
+          def escape_prop(value: str) -> str:
+              return (
+                  value.replace("\\", r"\\")
+                  .replace("\n", r"\n")
+                  .replace("=", r"\=")
+                  .replace(":", r"\:")
+              )
+
+          def write_props(key_password: str) -> None:
+              Path("android/key.properties").write_text(
+                  "\n".join(
+                      [
+                          f"storePassword={escape_prop(store)}",
+                          f"keyPassword={escape_prop(key_password)}",
+                          f"keyAlias={escape_prop(alias)}",
+                          "storeFile=upload-keystore.jks",
+                          "",
+                      ]
+                  ),
+                  encoding="utf-8",
+              )
+
+          def verify(key_password: str) -> int:
+              with tempfile.TemporaryDirectory() as tmp:
+                  src = Path(tmp) / "VerifyKeystore.java"
+                  src.write_text(java, encoding="utf-8")
+                  subprocess.run(["javac", str(src)], check=True)
+                  env = os.environ.copy()
+                  env.update(
+                      {
+                          "KS_FILE": str(keystore.resolve()),
+                          "KS_ALIAS": alias,
+                          "KS_STORE": store,
+                          "KS_KEY": key_password,
+                      }
+                  )
+                  result = subprocess.run(
+                      ["java", "-cp", tmp, "VerifyKeystore"],
+                      env=env,
+                  )
+                  return result.returncode
+
+          candidates = [key]
+          if store != key:
+              candidates.append(store)
+
+          last_code = 1
+          for candidate in candidates:
+              last_code = verify(candidate)
+              if last_code == 0:
+                  write_props(candidate)
+                  if candidate != key:
+                      print("ANDROID_KEY_PASSWORD did not match; using ANDROID_KEYSTORE_PASSWORD for the key (PKCS12).")
+                  raise SystemExit(0)
+
+          raise SystemExit(last_code)
+          PY
       - run: flutter pub get
       - run: flutter build appbundle --release
       - uses: actions/upload-artifact@v4
         with:
-          name: android-aab-${{ github.ref_name }}
+          name: android-aab-prod
           path: build/app/outputs/bundle/release/app-release.aab
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}-${{ github.ref_name }}
-          name: ${{ github.ref_name == 'prod' && 'Official Release' || 'Beta Build' }} v1.0.${{ github.run_number }}
-          prerelease: ${{ github.ref_name == 'staging' }}
+          tag_name: v1.0.${{ github.run_number }}
+          name: Official Release v1.0.${{ github.run_number }}
+          prerelease: false
           files: build/app/outputs/bundle/release/app-release.aab
       - name: Publish to Play Store
-        if: github.ref_name == 'prod' && env.PLAY_JSON != ''
+        if: env.PLAY_JSON != ''
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
