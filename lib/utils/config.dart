@@ -1,63 +1,97 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
+
+class CustomPreset {
+  String id; String name;
+  String? headImg, bodyImg, armUpperImg, armLowerImg, legUpperImg, legLowerImg;
+  CustomPreset({required this.id, required this.name, this.headImg, this.bodyImg, this.armUpperImg, this.armLowerImg, this.legUpperImg, this.legLowerImg});
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'headImg': headImg, 'bodyImg': bodyImg, 'armUpperImg': armUpperImg, 'armLowerImg': armLowerImg, 'legUpperImg': legUpperImg, 'legLowerImg': legLowerImg};
+  factory CustomPreset.fromJson(Map<String, dynamic> j) => CustomPreset(id: j['id'], name: j['name'], headImg: j['headImg'], bodyImg: j['bodyImg'], armUpperImg: j['armUpperImg'], armLowerImg: j['armLowerImg'], legUpperImg: j['legUpperImg'], legLowerImg: j['legLowerImg']);
+}
 
 class AppConfig extends ChangeNotifier {
   static final AppConfig instance = AppConfig._internal();
   AppConfig._internal();
-
-  int shimejiCount = 1;
-  double speedMultiplier = 1.0;
-  int actionFrequency = 3;
-  double sizeMultiplier = 1.0;
-  bool isClickThrough = false;
-
-  String mode = 'preset'; 
-  int presetId = 0; 
-  String? headImg, bodyImg, armImg, legImg;
-
+  int shimejiCount = 1; double speedMultiplier = 0.5; double sizeMultiplier = 1.0; int actionFrequency = 3;
+  bool isClickThrough = true; bool pauseOnScreenOff = true;
+  ThemeMode themeMode = ThemeMode.system; Locale locale = const Locale('vi');
+  String mode = 'preset'; String? activeCustomPresetId;
+  List<CustomPreset> customPresets = [];
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     shimejiCount = prefs.getInt('count') ?? 1;
-    speedMultiplier = prefs.getDouble('speed') ?? 1.0;
-    actionFrequency = prefs.getInt('freq') ?? 3;
+    speedMultiplier = prefs.getDouble('speed') ?? 0.5;
     sizeMultiplier = prefs.getDouble('size') ?? 1.0;
-    isClickThrough = prefs.getBool('clickThrough') ?? false;
-    mode = prefs.getString('mode') ?? 'preset';
-    presetId = prefs.getInt('presetId') ?? 0;
-    headImg = prefs.getString('headImg');
-    bodyImg = prefs.getString('bodyImg');
-    armImg = prefs.getString('armImg');
-    legImg = prefs.getString('legImg');
-    
-    _updateFlag();
+    actionFrequency = prefs.getInt('freq') ?? 3;
+    isClickThrough = prefs.getBool('clickThrough') ?? true;
+    pauseOnScreenOff = prefs.getBool('pauseOnScreenOff') ?? true;
+    activeCustomPresetId = prefs.getString('activeCustomPresetId');
+    String themeStr = prefs.getString('themeMode') ?? 'system';
+    themeMode = themeStr == 'light' ? ThemeMode.light : (themeStr == 'dark' ? ThemeMode.dark : ThemeMode.system);
+    locale = Locale(prefs.getString('lang') ?? 'vi');
+    List<String>? saved = prefs.getStringList('customPresets');
+    if (saved != null) customPresets = saved.map((e) => CustomPreset.fromJson(jsonDecode(e))).toList();
     notifyListeners();
   }
-
   Future<void> save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('count', shimejiCount);
     await prefs.setDouble('speed', speedMultiplier);
-    await prefs.setInt('freq', actionFrequency);
     await prefs.setDouble('size', sizeMultiplier);
+    await prefs.setInt('freq', actionFrequency);
     await prefs.setBool('clickThrough', isClickThrough);
-    await prefs.setString('mode', mode);
-    await prefs.setInt('presetId', presetId);
-    if(headImg != null) await prefs.setString('headImg', headImg!);
-    if(bodyImg != null) await prefs.setString('bodyImg', bodyImg!);
-    if(armImg != null) await prefs.setString('armImg', armImg!);
-    if(legImg != null) await prefs.setString('legImg', legImg!);
-
-    _updateFlag();
-    try { await FlutterOverlayWindow.shareData('reload'); } catch (_) {}
+    await prefs.setBool('pauseOnScreenOff', pauseOnScreenOff);
+    await prefs.setString('themeMode', themeMode == ThemeMode.light ? 'light' : (themeMode == ThemeMode.dark ? 'dark' : 'system'));
+    await prefs.setString('lang', locale.languageCode);
+    if (activeCustomPresetId != null) await prefs.setString('activeCustomPresetId', activeCustomPresetId!);
+    await prefs.setStringList('customPresets', customPresets.map((e) => jsonEncode(e.toJson())).toList());
+    if (Platform.isAndroid) {
+      try {
+        if (await FlutterOverlayWindow.isActive()) {
+          await FlutterOverlayWindow.updateFlag(isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag);
+          await FlutterOverlayWindow.shareData('reload');
+        }
+      } catch (_) {}
+    }
     notifyListeners();
   }
-  
-  Future<void> _updateFlag() async {
-    try {
-      if (await FlutterOverlayWindow.isActive()) {
-        await FlutterOverlayWindow.updateFlag(isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag);
-      }
-    } catch (_) {}
+  void toggleTheme(ThemeMode m) { themeMode = m; save(); }
+  void toggleLang(Locale l) { locale = l; save(); }
+  String translate(String k) {
+    Map<String, Map<String, String>> localized = {
+      'vi': {
+        'title': 'TScreen Funny Animation',
+        'settings': 'Cài đặt',
+        'save': 'Lưu cấu hình',
+        'theme': 'Giao diện',
+        'lang': 'Ngôn ngữ',
+        'add_preset': 'Thêm nhân vật',
+        'count': 'Số lượng',
+        'speed': 'Tốc độ',
+        'size': 'Kích thước',
+        'click_through': 'Xuyên thấu (click xuyên buddy)',
+        'battery': 'Tiết kiệm pin',
+      },
+      'en': {
+        'title': 'TScreen Funny Animation',
+        'settings': 'Settings',
+        'save': 'Save Config',
+        'theme': 'Theme',
+        'lang': 'Language',
+        'add_preset': 'Add Preset',
+        'count': 'Quantity',
+        'speed': 'Speed',
+        'size': 'Size',
+        'click_through': 'Click through',
+        'battery': 'Battery Saver',
+      },
+    };
+    return localized[locale.languageCode]?[k] ?? k;
+  }
+  CustomPreset? getActiveCustom() {
+    try { return customPresets.firstWhere((p) => p.id == activeCustomPresetId); } catch (_) { return null; }
   }
 }

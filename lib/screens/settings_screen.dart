@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../utils/config.dart';
 
@@ -15,56 +16,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final cfg = AppConfig.instance;
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(cfg.translate('settings')), actions: [
+        IconButton(icon: const Icon(Icons.check_circle_outline), onPressed: () async {
+          await cfg.save();
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(cfg.translate('save'))));
+        })
+      ]),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SwitchListTile(
-            title: const Text('Chế độ xuyên thấu (Click Through)'),
-            subtitle: const Text('Bật để dùng được app khác, tắt để tương tác (kéo thả) Shimeji'),
-            value: cfg.isClickThrough,
-            onChanged: (v) { cfg.isClickThrough = v; cfg.save(); setState((){}); },
-          ),
-          const Divider(),
-          Text('Size: ${cfg.sizeMultiplier.toStringAsFixed(1)}x'),
-          Slider(value: cfg.sizeMultiplier, min: 0.5, max: 2.5, onChanged: (v) { cfg.sizeMultiplier = v; cfg.save(); setState((){}); }),
-          Text('Quantity: ${cfg.shimejiCount}'),
-          Slider(value: cfg.shimejiCount.toDouble(), min: 1, max: 10, onChanged: (v) { cfg.shimejiCount = v.toInt(); cfg.save(); setState((){}); }),
-          Text('Speed: ${cfg.speedMultiplier.toStringAsFixed(1)}x'),
-          Slider(value: cfg.speedMultiplier, min: 0.5, max: 3.0, onChanged: (v) { cfg.speedMultiplier = v; cfg.save(); setState((){}); }),
-          const Divider(),
-          const Text('Model Presets', style: TextStyle(fontWeight: FontWeight.bold)),
-          Wrap(
-            spacing: 8,
-            children: [
-              ElevatedButton(onPressed: () { cfg.mode = 'preset'; cfg.presetId = 0; cfg.save(); setState((){}); }, child: const Text('Default')),
-              ElevatedButton(onPressed: () { cfg.mode = 'preset'; cfg.presetId = 1; cfg.save(); setState((){}); }, child: const Text('Cyber')),
-              ElevatedButton(onPressed: () { cfg.mode = 'preset'; cfg.presetId = 2; cfg.save(); setState((){}); }, child: const Text('Alien')),
+          _sectionTitle(cfg.translate('theme')),
+          SegmentedButton<ThemeMode>(
+            segments: const [
+              ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode), label: Text('Light')),
+              ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode), label: Text('Dark')),
+              ButtonSegment(value: ThemeMode.system, icon: Icon(Icons.settings_brightness), label: Text('Auto')),
             ],
+            selected: {cfg.themeMode},
+            onSelectionChanged: (Set<ThemeMode> s) => setState(() => cfg.toggleTheme(s.first)),
           ),
           const SizedBox(height: 10),
-          const Text('Custom Upload (Tự chọn ảnh)', style: TextStyle(fontWeight: FontWeight.bold)),
-          _buildUploadBtn('Head', (path) => cfg.headImg = path),
-          _buildUploadBtn('Body', (path) => cfg.bodyImg = path),
-          _buildUploadBtn('Arm', (path) => cfg.armImg = path),
-          _buildUploadBtn('Leg', (path) => cfg.legImg = path),
+          _sectionTitle(cfg.translate('lang')),
+          Row(
+            children: [
+              ChoiceChip(label: const Text('Tiếng Việt'), selected: cfg.locale.languageCode == 'vi', onSelected: (v) => cfg.toggleLang(const Locale('vi'))),
+              const SizedBox(width: 10),
+              ChoiceChip(label: const Text('English'), selected: cfg.locale.languageCode == 'en', onSelected: (v) => cfg.toggleLang(const Locale('en'))),
+            ],
+          ),
+          const Divider(),
+          _sliderRow(cfg.translate('count'), cfg.shimejiCount.toDouble(), 1, 10, (v) => cfg.shimejiCount = v.toInt()),
+          _sliderRow(cfg.translate('speed'), cfg.speedMultiplier, 0.1, 2.0, (v) => cfg.speedMultiplier = v),
+          _sliderRow(cfg.translate('size'), cfg.sizeMultiplier, 0.5, 2.0, (v) => cfg.sizeMultiplier = v),
+          SwitchListTile(title: Text(cfg.translate('click_through')), value: cfg.isClickThrough, onChanged: (v) => setState(() => cfg.isClickThrough = v)),
+          SwitchListTile(title: Text(cfg.translate('battery')), value: cfg.pauseOnScreenOff, onChanged: (v) => setState(() => cfg.pauseOnScreenOff = v)),
+          const Divider(),
+          ElevatedButton.icon(icon: const Icon(Icons.person_add), label: Text(cfg.translate('add_preset')), onPressed: _createNewPreset),
+          ...cfg.customPresets.map((p) => _presetCard(p)).toList(),
         ],
       ),
     );
   }
 
-  Widget _buildUploadBtn(String part, Function(String) onSet) {
+  Widget _sectionTitle(String text) => Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold)));
+
+  Widget _sliderRow(String label, double val, double min, double max, Function(double) onCh) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('$label: ${val.toStringAsFixed(1)}'),
+      Slider(value: val, min: min, max: max, onChanged: (v) => setState(() => onCh(v))),
+    ]);
+  }
+
+  Widget _presetCard(CustomPreset p) {
+    final cfg = AppConfig.instance;
+    return Card(
+      child: ExpansionTile(
+        leading: Radio<String>(value: p.id, groupValue: cfg.activeCustomPresetId, onChanged: (v) { cfg.mode = 'custom'; cfg.activeCustomPresetId = v; setState((){}); }),
+        title: Text(p.name),
+        children: [
+          _upRow(p, 'Đầu', p.headImg, (s) => p.headImg = s),
+          _upRow(p, 'Thân', p.bodyImg, (s) => p.bodyImg = s),
+          TextButton(onPressed: (){ cfg.customPresets.remove(p); setState((){}); }, child: const Text('Xóa', style: TextStyle(color: Colors.red)))
+        ],
+      ),
+    );
+  }
+
+  void _createNewPreset() {
+    TextEditingController ctrl = TextEditingController();
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: const Text('New Buddy'),
+      content: TextField(controller: ctrl),
+      actions: [TextButton(onPressed: () { if(ctrl.text.isNotEmpty) { AppConfig.instance.customPresets.add(CustomPreset(id: DateTime.now().toString(), name: ctrl.text)); setState((){}); } Navigator.pop(c); }, child: const Text('OK'))],
+    ));
+  }
+
+  Widget _upRow(CustomPreset p, String label, String? path, Function(String) onSet) {
     return ListTile(
-      title: Text('Upload $part Image'),
-      trailing: const Icon(Icons.upload),
+      dense: true, title: Text(label),
+      trailing: path != null ? const Icon(Icons.check, color: Colors.green) : const Icon(Icons.upload, size: 20),
       onTap: () async {
-        final xfile = await _picker.pickImage(source: ImageSource.gallery);
-        if (xfile != null) {
-          onSet(xfile.path);
-          AppConfig.instance.mode = 'custom';
-          AppConfig.instance.save();
-          setState((){});
-        }
+        final x = await _picker.pickImage(source: ImageSource.gallery);
+        if (x != null) { onSet(x.path); setState((){}); }
       },
     );
   }

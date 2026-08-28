@@ -144,6 +144,10 @@ bool Win32Window::Create(const std::wstring& title,
     return false;
   }
 
+  // Let DWM composite the frame so overlay mode can be truly transparent.
+  MARGINS margins = {-1, -1, -1, -1};
+  DwmExtendFrameIntoClientArea(window, &margins);
+
   UpdateTheme(window);
 
   return OnCreate();
@@ -179,6 +183,9 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    case WM_ERASEBKGND:
+      return 1;
+
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();
