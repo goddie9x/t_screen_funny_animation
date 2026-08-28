@@ -1,4 +1,4 @@
-package com.example.t_screen_funny_animation
+package com.god.tscreenfunny
 
 import io.flutter.embedding.android.FlutterActivity
 
