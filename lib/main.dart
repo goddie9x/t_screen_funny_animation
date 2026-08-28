@@ -5,6 +5,7 @@ import 'package:hotkey_manager/hotkey_manager.dart';
 import 'screens/home_screen.dart';
 import 'screens/overlay_screen.dart';
 import 'utils/config.dart';
+import 'widgets/t_funny_buddy.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +85,7 @@ class TFunnyApp extends StatelessWidget {
 void overlayMain() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppConfig.instance.load();
+  BuddyHitRegistry.worldSize = overlayPhysicsSize();
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
     color: Colors.transparent,

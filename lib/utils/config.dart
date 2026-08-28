@@ -86,6 +86,22 @@ class AppConfig extends ChangeNotifier {
     if (saved != null) customPresets = saved.map((e) => CustomPreset.fromJson(jsonDecode(e))).toList();
     notifyListeners();
   }
+
+  /// Persist the real activity/screen size from the main app (not the overlay window).
+  Future<void> rememberScreenSize(Size s) async {
+    if (s.width < 200 || s.height < 200) return;
+    if ((screenWidth - s.width).abs() < 1 && (screenHeight - s.height).abs() < 1) {
+      return;
+    }
+    screenWidth = s.width;
+    screenHeight = s.height;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('screenWidth', screenWidth);
+    await prefs.setDouble('screenHeight', screenHeight);
+  }
+
+  Size savedScreenSize() => Size(screenWidth, screenHeight);
+
   Future<void> save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('count', shimejiCount);
