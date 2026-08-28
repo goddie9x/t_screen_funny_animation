@@ -16,7 +16,7 @@ class AppConfig extends ChangeNotifier {
   static final AppConfig instance = AppConfig._internal();
   AppConfig._internal();
   int shimejiCount = 1; double speedMultiplier = 0.5; double sizeMultiplier = 1.0; int actionFrequency = 3;
-  bool isClickThrough = false; bool pauseOnScreenOff = true;
+  bool isClickThrough = true; bool pauseOnScreenOff = true;
   ThemeMode themeMode = ThemeMode.system; Locale locale = const Locale('vi');
   String mode = 'preset'; String? activeCustomPresetId;
   List<CustomPreset> customPresets = [];
@@ -26,7 +26,7 @@ class AppConfig extends ChangeNotifier {
     speedMultiplier = prefs.getDouble('speed') ?? 0.5;
     sizeMultiplier = prefs.getDouble('size') ?? 1.0;
     actionFrequency = prefs.getInt('freq') ?? 3;
-    isClickThrough = prefs.getBool('clickThrough') ?? false;
+    isClickThrough = prefs.getBool('clickThrough') ?? true;
     pauseOnScreenOff = prefs.getBool('pauseOnScreenOff') ?? true;
     activeCustomPresetId = prefs.getString('activeCustomPresetId');
     String themeStr = prefs.getString('themeMode') ?? 'system';
@@ -62,8 +62,32 @@ class AppConfig extends ChangeNotifier {
   void toggleLang(Locale l) { locale = l; save(); }
   String translate(String k) {
     Map<String, Map<String, String>> localized = {
-      'vi': {'title': 'TScreen Funny Animation', 'settings': 'Cài đặt', 'save': 'Lưu cấu hình', 'theme': 'Giao diện', 'lang': 'Ngôn ngữ', 'add_preset': 'Thêm nhân vật', 'count': 'Số lượng', 'speed': 'Tốc độ', 'size': 'Kích thước', 'click_through': 'Xuyên thấu', 'battery': 'Tiết kiệm pin'},
-      'en': {'title': 'TScreen Funny Animation', 'settings': 'Settings', 'save': 'Save Config', 'theme': 'Theme', 'lang': 'Language', 'add_preset': 'Add Preset', 'count': 'Quantity', 'speed': 'Speed', 'size': 'Size', 'click_through': 'Click Through', 'battery': 'Battery Saver'}
+      'vi': {
+        'title': 'TScreen Funny Animation',
+        'settings': 'Cài đặt',
+        'save': 'Lưu cấu hình',
+        'theme': 'Giao diện',
+        'lang': 'Ngôn ngữ',
+        'add_preset': 'Thêm nhân vật',
+        'count': 'Số lượng',
+        'speed': 'Tốc độ',
+        'size': 'Kích thước',
+        'click_through': 'Xuyên thấu (click xuyên buddy)',
+        'battery': 'Tiết kiệm pin',
+      },
+      'en': {
+        'title': 'TScreen Funny Animation',
+        'settings': 'Settings',
+        'save': 'Save Config',
+        'theme': 'Theme',
+        'lang': 'Language',
+        'add_preset': 'Add Preset',
+        'count': 'Quantity',
+        'speed': 'Speed',
+        'size': 'Size',
+        'click_through': 'Click through',
+        'battery': 'Battery Saver',
+      },
     };
     return localized[locale.languageCode]?[k] ?? k;
   }

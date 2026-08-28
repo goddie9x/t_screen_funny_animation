@@ -22,12 +22,14 @@ class _OverlayScreenState extends State<OverlayScreen> {
   }
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
+    return ColoredBox(
+      color: Colors.transparent,
+      child: Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.none,
         children: List.generate(
           AppConfig.instance.shimejiCount,
-          (index) => TFunnyBuddy(key: ValueKey('buddy_ovl_$index'), isOverlay: true),
+          (index) => TFunnyBuddy(key: ValueKey('buddy_ovl_$index'), isOverlay: true, index: index),
         ),
       ),
     );
