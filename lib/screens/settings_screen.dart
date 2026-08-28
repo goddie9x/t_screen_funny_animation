@@ -97,12 +97,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _sliderRow(cfg.translate('count'), cfg.shimejiCount.toDouble(), 1, 10, (v) => cfg.shimejiCount = v.toInt()),
           _sliderRow(cfg.translate('speed'), cfg.speedMultiplier, 0.1, 2.0, (v) => cfg.speedMultiplier = v),
           _sliderRow(cfg.translate('size'), cfg.sizeMultiplier, 0.5, 2.0, (v) => cfg.sizeMultiplier = v),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(cfg.translate('click_through')),
-            value: cfg.isClickThrough,
-            onChanged: (v) => setState(() => cfg.isClickThrough = v),
-          ),
+          if (Platform.isAndroid)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(cfg.translate('android_overlay_note')),
+              subtitle: Text(cfg.translate('android_overlay_note_hint')),
+            )
+          else
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(cfg.translate('click_through')),
+              value: cfg.isClickThrough,
+              onChanged: (v) => setState(() => cfg.isClickThrough = v),
+            ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(cfg.translate('battery')),

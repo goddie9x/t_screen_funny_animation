@@ -7,6 +7,7 @@ import '../utils/config.dart';
 class BuddyHitRegistry {
   static final Map<int, Rect> bounds = {};
   static int dragging = 0;
+  static Offset overlayOrigin = Offset.zero;
 
   static void set(int index, Rect rect) => bounds[index] = rect;
   static void remove(int index) => bounds.remove(index);
@@ -66,7 +67,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final screen = MediaQuery.sizeOf(context);
+    final screen = _worldSize(context);
     if (!_spawned && screen.width > 10) {
       _spawned = true;
       final scale = AppConfig.instance.sizeMultiplier;
@@ -96,6 +97,17 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
   double get _walkSpeed => 2.4 * AppConfig.instance.speedMultiplier;
   double get _scale => AppConfig.instance.sizeMultiplier;
+  bool get _androidWindowed => widget.isOverlay && Platform.isAndroid;
+
+  Size _worldSize(BuildContext context) {
+    if (_androidWindowed) {
+      final cfg = AppConfig.instance;
+      if (cfg.screenWidth > 10 && cfg.screenHeight > 10) {
+        return Size(cfg.screenWidth, cfg.screenHeight);
+      }
+    }
+    return MediaQuery.sizeOf(context);
+  }
 
   void _reportHit() {
     BuddyHitRegistry.set(
@@ -113,7 +125,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       });
       return;
     }
-    final s = MediaQuery.sizeOf(context);
+    final s = _worldSize(context);
     if (s.width < 10) return;
 
     final w = _spriteW * _scale;
@@ -197,7 +209,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
   }
 
   bool _grabEdgeIfClose() {
-    final s = MediaQuery.sizeOf(context);
+    final s = _worldSize(context);
     final w = _spriteW * _scale;
     final h = _spriteH * _scale;
     final left = 0.0;
@@ -236,10 +248,11 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     if (widget.preview) {
       return IgnorePointer(child: sprite);
     }
-    final clickThrough = widget.isOverlay && !Platform.isWindows && AppConfig.instance.isClickThrough;
+    final clickThrough = widget.isOverlay && !Platform.isWindows && !Platform.isAndroid && AppConfig.instance.isClickThrough;
+    final origin = _androidWindowed ? BuddyHitRegistry.overlayOrigin : Offset.zero;
     return Positioned(
-      left: posX,
-      top: posY,
+      left: posX - origin.dx,
+      top: posY - origin.dy,
       child: IgnorePointer(
         ignoring: clickThrough,
         child: GestureDetector(

@@ -266,24 +266,36 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
       }
       await _rebuildTrayMenu();
     } else if (Platform.isAndroid) {
+      final mq = MediaQuery.of(context);
       var granted = await FlutterOverlayWindow.isPermissionGranted();
       if (!granted) {
         await FlutterOverlayWindow.requestPermission();
         granted = await FlutterOverlayWindow.isPermissionGranted();
       }
-      if (!granted) return;
+      if (!granted || !mounted) return;
+      final cfg = AppConfig.instance;
+      cfg.screenWidth = mq.size.width;
+      cfg.screenHeight = mq.size.height;
+      await cfg.save();
+      if (!mounted) return;
       if (await FlutterOverlayWindow.isActive()) {
         await _moveAndroidToBack();
         return;
       }
+      final scale = cfg.sizeMultiplier;
+      final logicalW = (96 * scale + 24).ceil();
+      final logicalH = (148 * scale + 24).ceil();
+      final dpr = mq.devicePixelRatio;
       await FlutterOverlayWindow.showOverlay(
-        flag: AppConfig.instance.isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag,
-        alignment: OverlayAlignment.center,
+        flag: OverlayFlag.defaultFlag,
+        alignment: OverlayAlignment.topLeft,
         visibility: NotificationVisibility.visibilityPublic,
-        overlayTitle: AppConfig.instance.translate('title'),
-        overlayContent: AppConfig.instance.translate('overlay_mode'),
-        height: WindowSize.matchParent,
-        width: WindowSize.matchParent,
+        overlayTitle: cfg.translate('title'),
+        overlayContent: cfg.translate('overlay_mode'),
+        height: (logicalH * dpr).round(),
+        width: (logicalW * dpr).round(),
+        enableDrag: false,
+        startPosition: const OverlayPosition(24.0, 80.0),
       );
       await _moveAndroidToBack();
     }

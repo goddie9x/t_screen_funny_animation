@@ -63,6 +63,8 @@ class AppConfig extends ChangeNotifier {
   bool isClickThrough = true; bool pauseOnScreenOff = true; bool buddyOnScreen = true;
   ThemeMode themeMode = ThemeMode.system; Locale locale = const Locale('vi');
   String mode = 'preset'; String? activeCustomPresetId;
+  double screenWidth = 360;
+  double screenHeight = 800;
   List<CustomPreset> customPresets = [];
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -78,6 +80,8 @@ class AppConfig extends ChangeNotifier {
     String themeStr = prefs.getString('themeMode') ?? 'system';
     themeMode = themeStr == 'light' ? ThemeMode.light : (themeStr == 'dark' ? ThemeMode.dark : ThemeMode.system);
     locale = Locale(prefs.getString('lang') ?? 'vi');
+    screenWidth = prefs.getDouble('screenWidth') ?? screenWidth;
+    screenHeight = prefs.getDouble('screenHeight') ?? screenHeight;
     List<String>? saved = prefs.getStringList('customPresets');
     if (saved != null) customPresets = saved.map((e) => CustomPreset.fromJson(jsonDecode(e))).toList();
     notifyListeners();
@@ -94,6 +98,8 @@ class AppConfig extends ChangeNotifier {
     await prefs.setString('mode', mode);
     await prefs.setString('themeMode', themeMode == ThemeMode.light ? 'light' : (themeMode == ThemeMode.dark ? 'dark' : 'system'));
     await prefs.setString('lang', locale.languageCode);
+    await prefs.setDouble('screenWidth', screenWidth);
+    await prefs.setDouble('screenHeight', screenHeight);
     if (activeCustomPresetId != null) {
       await prefs.setString('activeCustomPresetId', activeCustomPresetId!);
     } else {
@@ -103,7 +109,7 @@ class AppConfig extends ChangeNotifier {
     if (Platform.isAndroid) {
       try {
         if (await FlutterOverlayWindow.isActive()) {
-          await FlutterOverlayWindow.updateFlag(isClickThrough ? OverlayFlag.clickThrough : OverlayFlag.defaultFlag);
+          await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
           await FlutterOverlayWindow.shareData('reload');
         }
       } catch (_) {}
@@ -125,6 +131,8 @@ class AppConfig extends ChangeNotifier {
         'speed': 'Tốc độ',
         'size': 'Kích thước',
         'click_through': 'Xuyên thấu (click xuyên buddy)',
+        'android_overlay_note': 'Thao tác buddy và app khác',
+        'android_overlay_note_hint': 'Buddy nằm trong cửa sổ nhỏ. Chạm buddy để kéo; chạm ra ngoài dùng điện thoại bình thường.',
         'battery': 'Tiết kiệm pin',
         'overlay_mode': 'Buddy ngoài màn hình',
         'overlay_mode_hint': 'Mở app là chạy buddy nổi trên màn hình',
@@ -166,6 +174,8 @@ class AppConfig extends ChangeNotifier {
         'speed': 'Speed',
         'size': 'Size',
         'click_through': 'Click through',
+        'android_overlay_note': 'Use buddy and other apps together',
+        'android_overlay_note_hint': 'The buddy lives in a small overlay window. Drag the buddy; taps outside go to your apps.',
         'battery': 'Battery Saver',
         'overlay_mode': 'On-screen buddy',
         'overlay_mode_hint': 'Start with buddy floating on the screen',
