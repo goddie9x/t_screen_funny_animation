@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../utils/config.dart';
 
@@ -156,15 +157,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
         leading: Radio<String?>(value: p.id),
         title: Text(p.name),
         children: [
-          _upRow(p, 'Đầu', p.headImg, (s) => p.headImg = s),
-          _upRow(p, 'Thân', p.bodyImg, (s) => p.bodyImg = s),
+          _partGroup(cfg.translate('parts_torso'), [
+            _upRow(cfg.translate('part_head'), cfg.translate('joint_head'), p.headImg, (s) => p.headImg = s),
+            _upRow(cfg.translate('part_body'), cfg.translate('joint_body'), p.bodyImg, (s) => p.bodyImg = s),
+          ]),
+          _partGroup(cfg.translate('parts_arm'), [
+            _upRow(cfg.translate('part_arm_upper'), cfg.translate('joint_shoulder'), p.armUpperImg, (s) => p.armUpperImg = s),
+            _upRow(cfg.translate('part_arm_lower'), cfg.translate('joint_elbow'), p.armLowerImg, (s) => p.armLowerImg = s),
+            _upRow(cfg.translate('part_hand'), cfg.translate('joint_wrist'), p.handImg, (s) => p.handImg = s),
+          ]),
+          _partGroup(cfg.translate('parts_leg'), [
+            _upRow(cfg.translate('part_leg_upper'), cfg.translate('joint_hip'), p.legUpperImg, (s) => p.legUpperImg = s),
+            _upRow(cfg.translate('part_leg_lower'), cfg.translate('joint_knee'), p.legLowerImg, (s) => p.legLowerImg = s),
+            _upRow(cfg.translate('part_foot'), cfg.translate('joint_ankle'), p.footImg, (s) => p.footImg = s),
+          ]),
           TextButton(
             onPressed: () {
               cfg.customPresets.remove(p);
+              if (cfg.activeCustomPresetId == p.id) {
+                cfg.activeCustomPresetId = null;
+                cfg.mode = 'preset';
+              }
               setState(() {});
             },
             child: const Text('Xóa', style: TextStyle(color: Colors.red)),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _partGroup(String title, List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          const SizedBox(height: 4),
+          ...children,
         ],
       ),
     );
@@ -193,11 +224,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _upRow(CustomPreset p, String label, String? path, Function(String) onSet) {
+  Widget _upRow(String label, String joint, String? path, Function(String?) onSet) {
+    final fileOk = path != null && File(path).existsSync();
     return ListTile(
       dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: fileOk
+              ? Image.file(File(path), fit: BoxFit.cover)
+              : Container(
+                  color: Colors.black12,
+                  child: const Icon(Icons.upload, size: 18),
+                ),
+        ),
+      ),
       title: Text(label),
-      trailing: path != null ? const Icon(Icons.check, color: Colors.green) : const Icon(Icons.upload, size: 20),
+      subtitle: Text(joint, style: const TextStyle(fontSize: 12)),
+      trailing: fileOk
+          ? IconButton(
+              icon: const Icon(Icons.close, size: 18),
+              tooltip: 'Xóa ảnh',
+              onPressed: () {
+                onSet(null);
+                setState(() {});
+              },
+            )
+          : const Icon(Icons.add_photo_alternate_outlined, size: 20),
       onTap: () async {
         final x = await _picker.pickImage(source: ImageSource.gallery);
         if (x != null) {
