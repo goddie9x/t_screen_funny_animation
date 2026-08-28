@@ -19,32 +19,71 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListener {
+class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListener, WidgetsBindingObserver {
   bool isWindowsOverlay = false;
   bool _showHint = false;
   bool _passthrough = true;
   bool _openingSettings = false;
   bool _lastBuddyOnScreen = true;
+  bool _startingAndroidOverlay = false;
   Offset _overlayOrigin = Offset.zero;
   Timer? _hitTimer;
+  StreamSubscription<dynamic>? _overlayMsgSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     AppConfig.instance.addListener(_onConfig);
     _lastBuddyOnScreen = AppConfig.instance.buddyOnScreen;
     windowManager.addListener(this);
     trayManager.addListener(this);
     _initHotkey();
     _initTray();
+    _listenOverlayMessages();
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
   Future<void> _bootstrap() async {
+    await _captureAndPersistScreenSize();
     if (!mounted) return;
     if (AppConfig.instance.buddyOnScreen) {
       await _enableBuddyOnScreen(fromStart: true);
     }
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (!Platform.isAndroid) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _captureAndPersistScreenSize(notifyOverlay: true);
+    });
+  }
+
+  Future<void> _captureAndPersistScreenSize({bool notifyOverlay = false}) async {
+    if (!Platform.isAndroid || !mounted) return;
+    final size = _androidDeviceScreenSize();
+    if (size.width < 200 || size.height < 200) return;
+    final before = AppConfig.instance.savedScreenSize();
+    await AppConfig.instance.rememberScreenSize(size);
+    BuddyHitRegistry.worldSize = AppConfig.instance.savedScreenSize();
+    final changed = (before.width - size.width).abs() > 1 || (before.height - size.height).abs() > 1;
+    if (notifyOverlay && changed) {
+      await _pushAndroidScreenSize();
+    }
+  }
+
+  Size _androidDeviceScreenSize() {
+    final dispatcher = WidgetsBinding.instance.platformDispatcher;
+    if (dispatcher.displays.isNotEmpty) {
+      final d = dispatcher.displays.first;
+      final dpr = d.devicePixelRatio == 0 ? 1.0 : d.devicePixelRatio;
+      final s = Size(d.size.width / dpr, d.size.height / dpr);
+      if (s.width > 200 && s.height > 200) return s;
+    }
+    final view = View.of(context);
+    final dpr = view.devicePixelRatio == 0 ? 1.0 : view.devicePixelRatio;
+    return Size(view.physicalSize.width / dpr, view.physicalSize.height / dpr);
   }
 
   void _onConfig() {
@@ -67,6 +106,29 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
     return Theme.of(context).colorScheme.surface;
   }
 
+  void _listenOverlayMessages() {
+    if (!Platform.isAndroid) return;
+    _overlayMsgSub = FlutterOverlayWindow.overlayListener.listen((event) {
+      if (event is Map && event['type'] == 'pos') {
+        final x = (event['x'] as num?)?.toDouble();
+        final y = (event['y'] as num?)?.toDouble();
+        if (x == null || y == null) return;
+        FlutterOverlayWindow.moveOverlay(OverlayPosition(x, y));
+      }
+    });
+  }
+
+  Future<void> _pushAndroidScreenSize() async {
+    final cfg = AppConfig.instance;
+    try {
+      await FlutterOverlayWindow.shareData({
+        'type': 'screen',
+        'w': cfg.screenWidth,
+        'h': cfg.screenHeight,
+      });
+    } catch (_) {}
+  }
+
   Future<void> _syncOverlayWithSetting() async {
     final want = AppConfig.instance.buddyOnScreen;
     if (Platform.isWindows) {
@@ -76,6 +138,7 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
         await _disableBuddyOnScreen();
       }
     } else if (Platform.isAndroid) {
+      if (_startingAndroidOverlay) return;
       final active = await FlutterOverlayWindow.isActive();
       if (want && !active) {
         await _enableBuddyOnScreen();
@@ -266,39 +329,63 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
       }
       await _rebuildTrayMenu();
     } else if (Platform.isAndroid) {
-      final mq = MediaQuery.of(context);
-      var granted = await FlutterOverlayWindow.isPermissionGranted();
-      if (!granted) {
-        await FlutterOverlayWindow.requestPermission();
-        granted = await FlutterOverlayWindow.isPermissionGranted();
+      if (_startingAndroidOverlay) return;
+      _startingAndroidOverlay = true;
+      try {
+        await _enableAndroidOverlay();
+      } finally {
+        _startingAndroidOverlay = false;
       }
-      if (!granted || !mounted) return;
-      final cfg = AppConfig.instance;
-      cfg.screenWidth = mq.size.width;
-      cfg.screenHeight = mq.size.height;
-      await cfg.save();
-      if (!mounted) return;
-      if (await FlutterOverlayWindow.isActive()) {
-        await _moveAndroidToBack();
-        return;
-      }
-      final scale = cfg.sizeMultiplier;
-      final logicalW = (96 * scale + 24).ceil();
-      final logicalH = (148 * scale + 24).ceil();
-      final dpr = mq.devicePixelRatio;
-      await FlutterOverlayWindow.showOverlay(
-        flag: OverlayFlag.defaultFlag,
-        alignment: OverlayAlignment.topLeft,
-        visibility: NotificationVisibility.visibilityPublic,
-        overlayTitle: cfg.translate('title'),
-        overlayContent: cfg.translate('overlay_mode'),
-        height: (logicalH * dpr).round(),
-        width: (logicalW * dpr).round(),
-        enableDrag: false,
-        startPosition: const OverlayPosition(24.0, 80.0),
-      );
-      await _moveAndroidToBack();
     }
+  }
+
+  Future<void> _enableAndroidOverlay() async {
+    var granted = await FlutterOverlayWindow.isPermissionGranted();
+    if (!granted) {
+      await FlutterOverlayWindow.requestPermission();
+      granted = await FlutterOverlayWindow.isPermissionGranted();
+    }
+    if (!granted || !mounted) return;
+    await _captureAndPersistScreenSize();
+    if (!mounted) return;
+    final cfg = AppConfig.instance;
+    if (await FlutterOverlayWindow.isActive()) {
+      await _pushAndroidScreenSize();
+      await _moveAndroidToBackWhenReady();
+      return;
+    }
+    try {
+      await _appChannel.invokeMethod('resetOverlayEngine');
+    } catch (_) {}
+    if (!mounted) return;
+    final scale = cfg.sizeMultiplier;
+    final logicalW = BuddyHitRegistry.overlayWidth(scale).ceil();
+    final logicalH = BuddyHitRegistry.overlayHeight(scale).ceil();
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    await FlutterOverlayWindow.showOverlay(
+      flag: OverlayFlag.defaultFlag,
+      alignment: OverlayAlignment.topLeft,
+      visibility: NotificationVisibility.visibilityPublic,
+      overlayTitle: cfg.translate('title'),
+      overlayContent: cfg.translate('overlay_mode'),
+      height: (logicalH * dpr).round(),
+      width: (logicalW * dpr).round(),
+      enableDrag: false,
+      startPosition: const OverlayPosition(24.0, 80.0),
+    );
+    await _moveAndroidToBackWhenReady();
+    await _pushAndroidScreenSize();
+    await cfg.save();
+  }
+
+  Future<void> _moveAndroidToBackWhenReady() async {
+    for (var i = 0; i < 25; i++) {
+      if (await FlutterOverlayWindow.isActive()) break;
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    await _moveAndroidToBack();
   }
 
   Future<void> _disableBuddyOnScreen() async {
@@ -353,7 +440,9 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _hitTimer?.cancel();
+    _overlayMsgSub?.cancel();
     AppConfig.instance.removeListener(_onConfig);
     windowManager.removeListener(this);
     trayManager.removeListener(this);

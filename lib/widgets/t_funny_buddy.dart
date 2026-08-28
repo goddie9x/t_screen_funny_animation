@@ -1,13 +1,65 @@
 ﻿import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
 import '../utils/config.dart';
+
+Size androidOverlayWorldSize() {
+  try {
+    final displays = PlatformDispatcher.instance.displays;
+    if (displays.isNotEmpty) {
+      final d = displays.first;
+      final dpr = d.devicePixelRatio == 0 ? 1.0 : d.devicePixelRatio;
+      var logical = Size(d.size.width / dpr, d.size.height / dpr);
+      if (logical.width < 250 || logical.height < 400) {
+        logical = d.size;
+      }
+      if (logical.width > 250 && logical.height > 400) return logical;
+    }
+  } catch (_) {}
+  return const Size(411, 891);
+}
+
+/// Physics world: size captured from the main activity, swapped on rotation.
+Size overlayPhysicsSize() {
+  final saved = AppConfig.instance.savedScreenSize();
+  if (saved.width < 200 || saved.height < 200) {
+    return androidOverlayWorldSize();
+  }
+  try {
+    final displays = PlatformDispatcher.instance.displays;
+    if (displays.isNotEmpty) {
+      final d = displays.first;
+      final dpr = d.devicePixelRatio == 0 ? 1.0 : d.devicePixelRatio;
+      final dw = d.size.width / dpr;
+      final dh = d.size.height / dpr;
+      if (dw > 250 && dh > 400) {
+        final savedLand = saved.width >= saved.height;
+        final displayLand = dw >= dh;
+        if (savedLand != displayLand) {
+          return Size(saved.height, saved.width);
+        }
+      }
+    }
+  } catch (_) {}
+  return saved;
+}
 
 class BuddyHitRegistry {
   static final Map<int, Rect> bounds = {};
   static int dragging = 0;
   static Offset overlayOrigin = Offset.zero;
+  static Size? worldSize;
+
+  static const double spriteW = 96;
+  static const double spriteH = 148;
+  static const double padX = 28;
+  static const double padTop = 48;
+  static const double padBottom = 24;
+
+  static double overlayWidth(double scale) => spriteW * scale + padX * 2;
+  static double overlayHeight(double scale) => spriteH * scale + padTop + padBottom;
 
   static void set(int index, Rect rect) => bounds[index] = rect;
   static void remove(int index) => bounds.remove(index);
@@ -60,7 +112,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       vsync: this,
       duration: const Duration(milliseconds: 720),
     )..repeat();
-    _timer = Timer.periodic(const Duration(milliseconds: 16), (_) => _update());
+    _timer = Timer.periodic(Duration(milliseconds: widget.isOverlay && Platform.isAndroid ? 33 : 16), (_) => _update());
     _brain();
   }
 
@@ -101,13 +153,18 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
   Size _worldSize(BuildContext context) {
     if (_androidWindowed) {
-      final cfg = AppConfig.instance;
-      if (cfg.screenWidth > 10 && cfg.screenHeight > 10) {
-        return Size(cfg.screenWidth, cfg.screenHeight);
-      }
+      final sized = overlayPhysicsSize();
+      BuddyHitRegistry.worldSize = sized;
+      return sized;
     }
     return MediaQuery.sizeOf(context);
   }
+
+  /// Keep the visible body a little inside the screen; do not hang off the edge.
+  double get _edgeMargin => 8.0 * _scale;
+
+  double _leftEdge() => _edgeMargin;
+  double _rightEdge(Size s, double w) => max(_leftEdge(), s.width - w - _edgeMargin);
 
   void _reportHit() {
     BuddyHitRegistry.set(
@@ -130,9 +187,9 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
     final w = _spriteW * _scale;
     final h = _spriteH * _scale;
-    final ground = s.height - h;
-    final left = 0.0;
-    final right = max(0.0, s.width - w);
+    final ground = s.height - h - _edgeMargin;
+    final left = _leftEdge();
+    final right = _rightEdge(s, w);
 
     setState(() {
       _ticks++;
@@ -187,7 +244,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
         }
       }
 
-      if (mode == 'climb' && posY <= 0) {
+      if (mode == 'climb' && posY <= _edgeMargin) {
         mode = 'fall';
         _wall = 0;
         velY = 0.4;
@@ -212,8 +269,8 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     final s = _worldSize(context);
     final w = _spriteW * _scale;
     final h = _spriteH * _scale;
-    final left = 0.0;
-    final right = max(0.0, s.width - w);
+    final left = _leftEdge();
+    final right = _rightEdge(s, w);
     const edge = 64.0;
     if (posY <= 36 || posY >= s.height - h - 8) return false;
     if (posX <= left + edge) {
@@ -249,10 +306,13 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       return IgnorePointer(child: sprite);
     }
     final clickThrough = widget.isOverlay && !Platform.isWindows && !Platform.isAndroid && AppConfig.instance.isClickThrough;
-    final origin = _androidWindowed ? BuddyHitRegistry.overlayOrigin : Offset.zero;
+    // Android overlay is a small window that follows the buddy. Keep the sprite
+    // pinned inside that window; world posX/posY only drive window movement.
+    final left = _androidWindowed ? BuddyHitRegistry.padX : posX;
+    final top = _androidWindowed ? BuddyHitRegistry.padTop : posY;
     return Positioned(
-      left: posX - origin.dx,
-      top: posY - origin.dy,
+      left: left,
+      top: top,
       child: IgnorePointer(
         ignoring: clickThrough,
         child: GestureDetector(
@@ -391,7 +451,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
         alignment: Alignment.center,
         transform: Matrix4.diagonal3Values(isLeft ? -1.0 : 1.0, 1.0, 1.0),
         child: Transform.translate(
-          offset: Offset(mode == 'climb' ? 14 : 0, bob),
+          offset: Offset(mode == 'climb' ? 8 : 0, bob),
           child: Transform.rotate(
             angle: tilt,
             child: Stack(
