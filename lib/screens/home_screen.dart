@@ -178,6 +178,16 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
     await cfg.save();
   }
 
+  Future<void> _activateOverlayFromHome() async {
+    final cfg = AppConfig.instance;
+    if (!cfg.buddyOnScreen) {
+      cfg.buddyOnScreen = true;
+      await cfg.save();
+    }
+    if (!mounted) return;
+    await _enableBuddyOnScreen();
+  }
+
   Future<void> _enterDesktopOverlay() async {
     final display = await screenRetriever.getPrimaryDisplay();
     final origin = display.visiblePosition ?? Offset.zero;
@@ -386,7 +396,26 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
       ),
       body: Stack(
         children: [
-          Center(child: Text(AppConfig.instance.translate('overlay_mode_hint'))),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    AppConfig.instance.translate('overlay_mode_hint'),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.visibility),
+                    label: Text(AppConfig.instance.translate('start_overlay')),
+                    onPressed: _activateOverlayFromHome,
+                  ),
+                ],
+              ),
+            ),
+          ),
           ..._buddies(overlay: false),
         ],
       ),
