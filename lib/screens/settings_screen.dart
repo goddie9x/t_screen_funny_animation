@@ -1,5 +1,4 @@
-﻿import 'dart:io';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../utils/config.dart';
 
@@ -19,7 +18,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(title: Text(cfg.translate('settings')), actions: [
         IconButton(icon: const Icon(Icons.check_circle_outline), onPressed: () async {
           await cfg.save();
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(cfg.translate('save'))));
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(cfg.translate('save'))));
         })
       ]),
       body: ListView(
@@ -52,7 +52,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(title: Text(cfg.translate('battery')), value: cfg.pauseOnScreenOff, onChanged: (v) => setState(() => cfg.pauseOnScreenOff = v)),
           const Divider(),
           ElevatedButton.icon(icon: const Icon(Icons.person_add), label: Text(cfg.translate('add_preset')), onPressed: _createNewPreset),
-          ...cfg.customPresets.map((p) => _presetCard(p)).toList(),
+          RadioGroup<String?>(
+            groupValue: cfg.activeCustomPresetId,
+            onChanged: (v) {
+              cfg.mode = 'custom';
+              cfg.activeCustomPresetId = v;
+              setState(() {});
+            },
+            child: Column(children: cfg.customPresets.map(_presetCard).toList()),
+          ),
         ],
       ),
     );
@@ -71,7 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final cfg = AppConfig.instance;
     return Card(
       child: ExpansionTile(
-        leading: Radio<String>(value: p.id, groupValue: cfg.activeCustomPresetId, onChanged: (v) { cfg.mode = 'custom'; cfg.activeCustomPresetId = v; setState((){}); }),
+        leading: Radio<String?>(value: p.id),
         title: Text(p.name),
         children: [
           _upRow(p, 'Đầu', p.headImg, (s) => p.headImg = s),
