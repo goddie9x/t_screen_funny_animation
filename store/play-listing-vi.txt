@@ -1,0 +1,103 @@
+================================================================================
+MÔ TẢ NGẮN (tối đa 80 ký tự)
+================================================================================
+
+Buddy hoạt hình nổi trên màn hình: đi, leo tường, tùy chỉnh, dùng app khác.
+
+(75/80 ký tự)
+
+
+================================================================================
+MÔ TẢ ĐẦY ĐỦ (tối đa 4000 ký tự)
+================================================================================
+
+T Screen Funny Animation (TScreen Funny Animation) mang một nhân vật hoạt hình (buddy) sống trên màn hình điện thoại của bạn.
+
+Buddy đi bộ, đứng idle, rơi và leo theo cạnh màn hình trong khi bạn vẫn mở app khác, nhắn tin hay lướt web như bình thường. Overlay chỉ là một cửa sổ nhỏ bám theo nhân vật: chạm vào buddy để kéo; chạm ra ngoài thì thao tác điện thoại không bị cản.
+
+TÍNH NĂNG
+• Nhân vật nổi trên các ứng dụng khác (overlay)
+• Hành vi vui: đi, leo tường/cạnh màn hình, rơi, đứng nghỉ
+• Kéo thả buddy bằng tay
+• Tùy chỉnh tốc độ, kích thước, số lượng nhân vật
+• Giao diện sáng/tối và ngôn ngữ Tiếng Việt / English
+• Tạo nhân vật riêng: gắn ảnh đầu, thân, tay, chân từ thư viện của bạn
+• Bật/tắt overlay từ màn hình chính; buddy nhớ cài đặt trên máy
+
+CÁCH DÙNG
+1. Mở app và cấp quyền “Hiển thị trên các ứng dụng khác” khi hệ thống hỏi.
+2. Bấm “Hiện buddy ngoài màn hình”.
+3. Dùng điện thoại như mọi ngày — buddy chạy phía trên, không khóa toàn màn hình.
+4. Vào Cài đặt để đổi tốc độ, kích thước hoặc tạo preset tùy chỉnh.
+
+QUYỀN ỨNG DỤNG YÊU CẦU
+Ứng dụng chỉ xin quyền cần thiết để buddy hiện trên màn hình và giữ overlay khi bạn dùng app khác. Không dùng quyền để theo dõi, thu thập dữ liệu hay hiện quảng cáo.
+
+• Hiển thị trên các ứng dụng khác (SYSTEM_ALERT_WINDOW)
+  Để vẽ buddy nổi phía trên app bạn đang dùng. Đây là chức năng cốt lõi. Bạn có thể tắt overlay bất cứ lúc nào trong app hoặc trong cài đặt hệ thống.
+
+• Dịch vụ chạy nền / Đặc biệt (FOREGROUND_SERVICE, FOREGROUND_SERVICE_SPECIAL_USE)
+  Giữ overlay buddy khi bạn chuyển sang app khác hoặc đưa app T Screen Funny Animation xuống nền. Không chạy ngầm ẩn: luôn có thông báo hệ thống khi overlay đang bật.
+
+• Thông báo (POST_NOTIFICATIONS)
+  Thông báo đi kèm dịch vụ overlay, cho bạn biết buddy đang chạy và giúp tắt/quản lý overlay. Ứng dụng không gửi thông báo marketing.
+
+• Wake lock
+  Giúp animation overlay không bị hệ thống tạm dừng đột ngột khi buddy đang hiện trên màn hình. Không dùng để giữ máy thức khi overlay đã tắt.
+
+• Chọn ảnh (Photo Picker)
+  Chỉ khi bạn tự tạo nhân vật tùy chỉnh và chọn ảnh cho từng bộ phận. Ứng dụng không quét toàn bộ thư viện; ảnh lưu cục bộ trên máy, không tải lên máy chủ.
+
+QUYỀN RIÊNG TƯ
+Ứng dụng hoạt động ngoại tuyến. Không có tài khoản, không quảng cáo, không SDK phân tích. Cài đặt và ảnh nhân vật được lưu trên thiết bị của bạn.
+
+Chính sách quyền riêng tư:
+https://goddie9x.github.io/privacy/tscreenfunny-privacy.html
+
+T Screen Funny Animation không đọc nội dung app khác, không ghi màn hình, không thu thập vị trí, danh bạ hay tin nhắn. Overlay chỉ để hiển thị nhân vật hoạt hình.
+
+
+================================================================================
+MÔ TẢ QUYỀN CHO PLAY CONSOLE (Permission declarations)
+Dán vào form khai báo quyền / “Display over other apps” / Foreground service
+================================================================================
+
+----- Hiển thị trên ứng dụng khác (SYSTEM_ALERT_WINDOW) -----
+
+Core functionality: desktop-pet overlay.
+
+The app shows a small animated character (buddy) on top of other apps. The overlay is a compact window that follows the character so the user can still tap other apps. The user must grant the “Display over other apps” permission; overlay can be turned off from the in-app button or by closing the overlay. This permission is not used for ads, phishing, screen recording, or reading other apps’ content.
+
+Tiếng Việt (nếu form cho phép):
+Ứng dụng hiển thị nhân vật hoạt hình (buddy) trong một cửa sổ overlay nhỏ phía trên các app khác. Người dùng tự cấp quyền “Hiển thị trên ứng dụng khác”. Có thể tắt overlay trong app. Không dùng quyền này cho quảng cáo, thu thập dữ liệu, ghi màn hình hay đọc nội dung app khác.
+
+----- Play Console: FOREGROUND_SERVICE_SPECIAL_USE → tick “Khác” -----
+
+Dán vào ô mô tả nhiệm vụ (nên dùng bản tiếng Anh; reviewer Play đọc EN):
+
+The app is a desktop-pet: an animated character (buddy) that stays visible on top of other apps after the user leaves our UI. When the user taps “Show buddy on screen”, we start a specialUse foreground service that hosts the overlay window and keeps the character walking, climbing, and draggable while the user is in the launcher or any other app. This work is always user-perceptible (the character is on screen) and is shown with a persistent notification. The user starts and stops it from the app; closing the overlay stops the service. No other foregroundServiceType fits: this is not camera, connectedDevice, dataSync, health, location, mediaPlayback, mediaProjection, microphone, phoneCall, or remoteMessaging. We do not use this service for ads, tracking, or hidden background work.
+
+Bản tiếng Việt (nếu ô bắt tiếng Việt):
+
+Ứng dụng là nhân vật hoạt hình (buddy) nổi trên màn hình khi người dùng không còn ở trong app. Sau khi bấm “Hiện buddy ngoài màn hình”, dịch vụ foreground loại specialUse giữ cửa sổ overlay và animation (đi, leo, kéo thả) trong lúc người dùng ở launcher hoặc app khác. Việc này luôn nhìn thấy được (buddy hiện trên màn hình) và có thông báo hệ thống. Người dùng tự bật/tắt; tắt overlay thì dừng dịch vụ. Không thuộc camera, mediaPlayback, mediaProjection, location hay các loại FGS có sẵn khác. Không dùng cho quảng cáo, theo dõi hay chạy ngầm ẩn.
+
+----- Thông báo (POST_NOTIFICATIONS) -----
+
+Required on Android 13+ to show the ongoing notification that Android requires for a foreground overlay service. The notification tells the user the buddy overlay is running and provides a way to manage it. No promotional or marketing notifications.
+
+Tiếng Việt:
+Cần trên Android 13+ để hiện thông báo bắt buộc của dịch vụ overlay. Thông báo cho biết buddy đang chạy. Không gửi thông báo quảng cáo.
+
+----- Wake lock (WAKE_LOCK) -----
+
+Keeps the overlay animation from being paused unexpectedly by the system while the buddy is visible. Not used to keep the screen on after the overlay is stopped.
+
+Tiếng Việt:
+Giữ animation overlay không bị hệ thống tạm dừng khi buddy đang hiện. Không dùng để thức máy khi overlay đã tắt.
+
+----- Chọn ảnh / thư viện (nếu Play hỏi Photos/Media) -----
+
+Used only when the user creates a custom character preset and picks images for body parts (head, torso, arms, legs). The app uses the system photo picker, does not scan the full gallery, and stores copies locally. Images are never uploaded.
+
+Tiếng Việt:
+Chỉ khi người dùng tự tạo nhân vật và chọn ảnh từng bộ phận. Dùng Photo Picker của hệ thống, không quét cả thư viện, lưu cục bộ, không tải lên mạng.
