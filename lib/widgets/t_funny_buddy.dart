@@ -115,8 +115,8 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
       if (mode == 'climb') {
         velX = 0;
-        velY = -2.8 * AppConfig.instance.speedMultiplier;
-        posX = _wall < 0 ? left : (right + 18 * _scale);
+        velY = -2.0 * AppConfig.instance.speedMultiplier;
+        posX = _wall < 0 ? left : right;
       } else if (!onGround) {
         velY = min(velY + 0.55, 16);
         if (mode != 'fall' && mode != 'drag') mode = 'fall';
@@ -237,10 +237,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
   }
 
   Widget _buildCharacter() {
-    final t = _animCtrl.value;
-    final walk = sin(t * pi * 2);
-    final climb = sin(t * pi * 4);
-    final idle = sin(t * pi * 2);
+    final sec = _ticks * 0.016;
     final custom = AppConfig.instance.mode == 'custom' ? AppConfig.instance.getActiveCustom() : null;
     final headImg = custom?.headImg;
     final bodyImg = custom?.bodyImg;
@@ -251,72 +248,83 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     final legLowImg = custom?.legLowerImg;
     final footImg = custom?.footImg;
 
-    double fArmUp = 0.04, bArmUp = -0.04, fArmLow = 0.1, bArmLow = 0.1;
-    double fHand = 0.08, bHand = 0.08;
-    double fLegUp = 0.02, bLegUp = -0.02, fLegLow = 0.08, bLegLow = 0.08;
-    double fFoot = 1.05, bFoot = 1.05;
+    double fArmUp = 0.08, bArmUp = -0.08, fArmLow = -0.32, bArmLow = -0.32;
+    double fHand = -0.08, bHand = -0.08;
+    double fLegUp = 0.04, bLegUp = -0.04, fLegLow = 0.16, bLegLow = 0.16;
+    double fFoot = 0, bFoot = 0;
     double bob = 0;
     double tilt = 0;
+    double headTilt = 0;
 
     if (mode == 'walk') {
-      fArmUp = -walk * 0.9;
-      bArmUp = walk * 0.9;
-      fArmLow = -0.45 - walk.abs() * 0.25;
-      bArmLow = -0.45 - walk.abs() * 0.25;
-      fHand = 0.18 + walk.abs() * 0.12;
-      bHand = 0.18 + walk.abs() * 0.12;
-      fLegUp = -walk * 0.7;
-      bLegUp = walk * 0.7;
-      fLegLow = fLegUp < 0 ? 0.55 : 0.12;
-      bLegLow = bLegUp < 0 ? 0.55 : 0.12;
-      fFoot = fLegUp < 0 ? 0.55 : 1.15;
-      bFoot = bLegUp < 0 ? 0.55 : 1.15;
-      bob = -walk.abs() * 5;
-      tilt = walk * 0.05;
+      final g = sec * 2 * pi * 1.3;
+      final hipF = sin(g) * 0.38;
+      final hipB = sin(g + pi) * 0.38;
+      fLegUp = hipF;
+      bLegUp = hipB;
+      final kneeF = 0.16 + max(0.0, sin(g - 0.45)) * 0.42;
+      final kneeB = 0.16 + max(0.0, sin(g + pi - 0.45)) * 0.42;
+      fLegLow = kneeF;
+      bLegLow = kneeB;
+      fArmUp = sin(g) * 0.7;
+      bArmUp = sin(g + pi) * 0.7;
+      fArmLow = -0.42 - fArmUp.abs() * 0.06;
+      bArmLow = -0.42 - bArmUp.abs() * 0.06;
+      fHand = -0.1;
+      bHand = -0.1;
+      fFoot = -fLegUp - fLegLow + (hipF > 0 ? 0.18 : 0.02);
+      bFoot = -bLegUp - bLegLow + (hipB > 0 ? 0.18 : 0.02);
+      bob = (1 - cos(g * 2)) * -2.0;
+      tilt = sin(g) * 0.03;
     } else if (mode == 'climb') {
-      fArmUp = -1.7 + climb * 0.75;
-      bArmUp = -1.7 - climb * 0.75;
-      fArmLow = fArmUp < -1.8 ? 0.55 : -0.2;
-      bArmLow = bArmUp < -1.8 ? 0.55 : -0.2;
-      fHand = 0.55;
-      bHand = 0.55;
-      fLegUp = -0.7 - climb * 0.65;
-      bLegUp = -0.7 + climb * 0.65;
-      fLegLow = fLegUp < -0.9 ? 1.05 : 0.5;
-      bLegLow = bLegUp < -0.9 ? 1.05 : 0.5;
-      fFoot = 0.85;
-      bFoot = 0.85;
-      bob = -climb.abs() * 2;
-      tilt = 0.1;
+      final g = sec * 2 * pi * 1.6;
+      final reach = sin(g);
+      fArmUp = -(2.05 + reach * 0.32);
+      bArmUp = -(2.2 - reach * 0.32);
+      fArmLow = -0.5;
+      bArmLow = -0.5;
+      fHand = -0.12;
+      bHand = -0.12;
+      fLegUp = -(0.32 + reach * 0.22);
+      bLegUp = -(0.4 - reach * 0.22);
+      fLegLow = 0.72;
+      bLegLow = 0.72;
+      fFoot = -fLegUp - fLegLow + 0.12;
+      bFoot = -bLegUp - bLegLow + 0.12;
+      bob = -reach.abs() * 1.2;
+      tilt = 0.04;
+      headTilt = 0.08;
     } else if (mode == 'drag' || mode == 'fall') {
-      final flap = sin(t * pi * 6);
-      fArmUp = pi - 0.35 + flap * 0.25;
-      bArmUp = pi + 0.35 - flap * 0.25;
-      fArmLow = 0.35;
-      bArmLow = 0.35;
-      fHand = 0.25;
-      bHand = 0.25;
-      fLegUp = 0.45 + flap * 0.2;
-      bLegUp = -0.45 - flap * 0.2;
-      fLegLow = 0.25;
-      bLegLow = 0.25;
-      fFoot = 0.7;
-      bFoot = 0.7;
-      tilt = mode == 'fall' ? flap * 0.12 : 0.08;
+      final g = sec * 2 * pi * 3.4;
+      final flap = sin(g);
+      fArmUp = 1.4 + sin(g) * 1.0;
+      bArmUp = -1.4 + sin(g + 1.3) * 1.0;
+      fArmLow = -0.48 - flap.abs() * 0.1;
+      bArmLow = -0.48 - flap.abs() * 0.1;
+      fHand = -0.1;
+      bHand = -0.1;
+      fLegUp = 0.45 + sin(g + 0.7) * 0.65;
+      bLegUp = -0.45 + sin(g + 2.1) * 0.65;
+      fLegLow = 0.5 + sin(g + 0.4).abs() * 0.2;
+      bLegLow = 0.5 + sin(g + 1.6).abs() * 0.2;
+      fFoot = -fLegUp - fLegLow + 0.12;
+      bFoot = -bLegUp - bLegLow + 0.12;
+      tilt = mode == 'fall' ? sin(g * 0.5) * 0.16 : 0.05;
     } else {
-      fArmUp = 0.05;
-      bArmUp = -0.05;
-      fArmLow = 0.1;
-      bArmLow = 0.1;
-      fHand = 0.08;
-      bHand = 0.08;
-      fLegUp = 0.02;
-      bLegUp = -0.02;
-      fLegLow = 0.08;
-      bLegLow = 0.08;
-      fFoot = 1.05;
-      bFoot = 1.05;
-      bob = idle * 1.4;
+      final idle = sin(sec * 2 * pi * 0.45);
+      fArmUp = 0.08 + idle * 0.03;
+      bArmUp = -0.08 - idle * 0.03;
+      fArmLow = -0.32;
+      bArmLow = -0.32;
+      fHand = -0.08;
+      bHand = -0.08;
+      fLegUp = 0.04;
+      bLegUp = -0.04;
+      fLegLow = 0.16;
+      bLegLow = 0.16;
+      fFoot = -fLegUp - fLegLow + 0.02;
+      bFoot = -bLegUp - bLegLow + 0.02;
+      bob = idle * 0.7;
       tilt = 0;
     }
 
@@ -329,7 +337,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
         alignment: Alignment.center,
         transform: Matrix4.diagonal3Values(isLeft ? -1.0 : 1.0, 1.0, 1.0),
         child: Transform.translate(
-          offset: Offset(mode == 'climb' ? 8 : 0, bob),
+          offset: Offset(mode == 'climb' ? 7 : 0, bob),
           child: Transform.rotate(
             angle: tilt,
             child: Stack(
@@ -367,12 +375,16 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
                           Positioned(
                             left: -7,
                             top: -42,
-                            child: _part(
-                              48,
-                              48,
-                              const Color(0xFFF59E0B),
-                              headImg,
-                              headImg != null ? const [] : [_BuddyFace(blink: blink)],
+                            child: Transform.rotate(
+                              angle: headTilt,
+                              alignment: Alignment.bottomCenter,
+                              child: _part(
+                                48,
+                                48,
+                                const Color(0xFFF59E0B),
+                                headImg,
+                                headImg != null ? const [] : [_BuddyFace(blink: blink)],
+                              ),
                             ),
                           ),
                         ],
@@ -403,7 +415,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
             Positioned(
               left: -1,
               top: 19,
-              child: _joint(13, 14, const Color(0xFFCBD5E1), handR, hand, const [], radius: 5),
+              child: _joint(12, 12, const Color(0xFFCBD5E1), handR, hand, const [], radius: 5),
             ),
           ]),
         ),
@@ -421,9 +433,18 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
           top: 24,
           child: _joint(12, 26, const Color(0xFFB45309), lowR, low, [
             Positioned(
-              left: -2,
+              left: 5,
               top: 20,
-              child: _joint(18, 10, const Color(0xFFD97706), footR, foot, const [], radius: 4),
+              child: _joint(
+                16,
+                7,
+                const Color(0xFFD97706),
+                footR,
+                foot,
+                const [],
+                radius: 3,
+                alignment: Alignment.centerLeft,
+              ),
             ),
           ]),
         ),
@@ -431,10 +452,19 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     );
   }
 
-  Widget _joint(double w, double h, Color c, double r, String? img, List<Widget> children, {double radius = 8}) {
+  Widget _joint(
+    double w,
+    double h,
+    Color c,
+    double r,
+    String? img,
+    List<Widget> children, {
+    double radius = 8,
+    Alignment alignment = Alignment.topCenter,
+  }) {
     return Transform.rotate(
       angle: r,
-      alignment: Alignment.topCenter,
+      alignment: alignment,
       child: _part(w, h, c, img, children, radius: radius),
     );
   }
