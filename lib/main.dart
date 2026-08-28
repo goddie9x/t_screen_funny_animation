@@ -46,6 +46,15 @@ class TFunnyApp extends StatelessWidget {
             useMaterial3: true,
             brightness: Brightness.light,
             colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
+            cardTheme: const CardThemeData(
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              clipBehavior: Clip.none,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+                side: BorderSide.none,
+              ),
+            ),
           ),
           darkTheme: ThemeData(
             useMaterial3: true,
@@ -53,6 +62,15 @@ class TFunnyApp extends StatelessWidget {
             colorScheme: ColorScheme.fromSeed(
               seedColor: const Color(0xFF2563EB),
               brightness: Brightness.dark,
+            ),
+            cardTheme: const CardThemeData(
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              clipBehavior: Clip.none,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+                side: BorderSide.none,
+              ),
             ),
           ),
           home: const HomeScreen(),

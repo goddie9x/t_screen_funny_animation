@@ -56,6 +56,15 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
       _syncOverlayWithSetting();
     }
     _rebuildTrayMenu();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !Platform.isWindows || isWindowsOverlay) return;
+      windowManager.setBackgroundColor(_appWindowColor());
+    });
+  }
+
+  Color _appWindowColor() {
+    if (!mounted) return const Color(0xFF1C1B1F);
+    return Theme.of(context).colorScheme.surface;
   }
 
   Future<void> _syncOverlayWithSetting() async {
@@ -222,8 +231,8 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
     await windowManager.setSkipTaskbar(false);
     await windowManager.setAlwaysOnTop(false);
     await windowManager.setHasShadow(true);
-    await windowManager.setTitleBarStyle(TitleBarStyle.normal);
-    await windowManager.setBackgroundColor(Colors.white);
+    await windowManager.setTitleBarStyle(TitleBarStyle.normal, windowButtonVisibility: true);
+    await windowManager.setBackgroundColor(_appWindowColor());
     await windowManager.setMinimumSize(const Size(400, 300));
     await windowManager.setSize(const Size(800, 600));
     await windowManager.center();
@@ -368,7 +377,13 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: scheme.surface,
-      appBar: AppBar(title: Text(AppConfig.instance.translate('title'))),
+      appBar: AppBar(
+        title: Text(AppConfig.instance.translate('title')),
+        backgroundColor: scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
       body: Stack(
         children: [
           Center(child: Text(AppConfig.instance.translate('overlay_mode_hint'))),

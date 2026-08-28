@@ -21,7 +21,8 @@ class BuddyHitRegistry {
 class TFunnyBuddy extends StatefulWidget {
   final bool isOverlay;
   final int index;
-  const TFunnyBuddy({super.key, required this.isOverlay, this.index = 0});
+  final bool preview;
+  const TFunnyBuddy({super.key, required this.isOverlay, this.index = 0, this.preview = false});
 
   @override
   State<TFunnyBuddy> createState() => _TFunnyBuddyState();
@@ -49,6 +50,11 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
   void initState() {
     super.initState();
     isLeft = widget.index.isOdd;
+    if (widget.preview) {
+      mode = 'idle';
+      posX = 0;
+      posY = 0;
+    }
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 720),
@@ -100,6 +106,13 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
   void _update() {
     if (!mounted || mode == 'drag') return;
+    if (widget.preview) {
+      setState(() {
+        _ticks++;
+        mode = 'idle';
+      });
+      return;
+    }
     final s = MediaQuery.sizeOf(context);
     if (s.width < 10) return;
 
@@ -212,6 +225,17 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    final sprite = Transform.scale(
+      scale: widget.preview ? 0.82 : _scale,
+      alignment: widget.preview ? Alignment.topCenter : Alignment.topLeft,
+      child: AnimatedBuilder(
+        animation: _animCtrl,
+        builder: (context, _) => _buildCharacter(),
+      ),
+    );
+    if (widget.preview) {
+      return IgnorePointer(child: sprite);
+    }
     final clickThrough = widget.isOverlay && !Platform.isWindows && AppConfig.instance.isClickThrough;
     return Positioned(
       left: posX,
@@ -246,14 +270,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
           }),
           child: MouseRegion(
             cursor: SystemMouseCursors.grab,
-            child: Transform.scale(
-              scale: _scale,
-              alignment: Alignment.topLeft,
-              child: AnimatedBuilder(
-                animation: _animCtrl,
-                builder: (context, _) => _buildCharacter(),
-              ),
-            ),
+            child: sprite,
           ),
         ),
       ),
@@ -407,7 +424,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
                                 48,
                                 const Color(0xFFF59E0B),
                                 headImg,
-                                headImg != null ? const [] : [_BuddyFace(blink: blink)],
+                                (headImg != null && File(headImg).existsSync()) ? const [] : [_BuddyFace(blink: blink)],
                               ),
                             ),
                           ),
@@ -494,20 +511,21 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
   }
 
   Widget _part(double w, double h, Color c, String? img, List<Widget> children, {double radius = 8}) {
+    final fileOk = img != null && File(img).existsSync();
     return Container(
       width: w,
       height: h,
-      decoration: img == null
-          ? BoxDecoration(
+      decoration: fileOk
+          ? null
+          : BoxDecoration(
               color: c,
               borderRadius: BorderRadius.circular(radius),
               boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 2, offset: Offset(0, 1))],
-            )
-          : null,
+            ),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          if (img != null)
+          if (fileOk)
             Positioned.fill(
               child: OverflowBox(
                 maxWidth: 120,
