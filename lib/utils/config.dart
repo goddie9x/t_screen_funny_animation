@@ -150,6 +150,9 @@ class AppConfig extends ChangeNotifier {
         'parts_torso': 'Đầu & thân',
         'parts_arm': 'Tay (vai, khuỷu, cổ tay)',
         'parts_leg': 'Chân (háng, gối, cổ chân)',
+        'preset_default': 'Mặc định',
+        'preset_default_hint': 'Buddy có sẵn, không dùng ảnh tùy chỉnh',
+        'preset_preview': 'Xem trước buddy',
       },
       'en': {
         'title': 'TScreen Funny Animation',
@@ -187,11 +190,26 @@ class AppConfig extends ChangeNotifier {
         'parts_torso': 'Head & body',
         'parts_arm': 'Arms (shoulder, elbow, wrist)',
         'parts_leg': 'Legs (hip, knee, ankle)',
+        'preset_default': 'Default',
+        'preset_default_hint': 'Built-in buddy, no custom parts',
+        'preset_preview': 'Buddy preview',
       },
     };
     return localized[locale.languageCode]?[k] ?? k;
   }
   CustomPreset? getActiveCustom() {
+    if (mode != 'custom' || activeCustomPresetId == null) return null;
     try { return customPresets.firstWhere((p) => p.id == activeCustomPresetId); } catch (_) { return null; }
+  }
+
+  Future<void> selectPreset(String? id) async {
+    if (id == null) {
+      mode = 'preset';
+      activeCustomPresetId = null;
+    } else {
+      mode = 'custom';
+      activeCustomPresetId = id;
+    }
+    await save();
   }
 }
