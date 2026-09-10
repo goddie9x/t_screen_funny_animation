@@ -1,4 +1,5 @@
 ﻿import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import '../widgets/t_funny_buddy.dart';
@@ -37,7 +38,7 @@ class _OverlayScreenState extends State<OverlayScreen> with WidgetsBindingObserv
         if (mounted) setState(() {});
       }
     });
-    _syncTimer = Timer.periodic(const Duration(milliseconds: 50), (_) => _syncWindow());
+    _syncTimer = Timer.periodic(const Duration(milliseconds: 80), (_) => _syncWindow());
   }
 
   void _applyWorldSize() {
@@ -64,8 +65,16 @@ class _OverlayScreenState extends State<OverlayScreen> with WidgetsBindingObserv
     for (final r in BuddyHitRegistry.bounds.values.skip(1)) {
       box = box.expandToInclude(r);
     }
-    final x = (box.left - BuddyHitRegistry.padX).round();
-    final y = (box.top - BuddyHitRegistry.padTop).round();
+    var x = (box.left - BuddyHitRegistry.padX).round();
+    var y = (box.top - BuddyHitRegistry.padTop).round();
+    final world = BuddyHitRegistry.worldSize;
+    if (world != null) {
+      final scale = AppConfig.instance.sizeMultiplier;
+      final maxX = max(0, (world.width - BuddyHitRegistry.overlayWidth(scale)).floor());
+      final maxY = max(0, (world.height - BuddyHitRegistry.overlayHeight(scale)).floor());
+      x = x.clamp(0, maxX).toInt();
+      y = y.clamp(0, maxY).toInt();
+    }
     if ((x - _lastX).abs() < 4 && (y - _lastY).abs() < 4) return;
     _moving = true;
     try {

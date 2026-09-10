@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
   bool _openingSettings = false;
   bool _lastBuddyOnScreen = true;
   bool _startingAndroidOverlay = false;
+  bool _overlayBusy = false;
   Offset _overlayOrigin = Offset.zero;
   Timer? _hitTimer;
   StreamSubscription<dynamic>? _overlayMsgSub;
@@ -245,10 +246,11 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
     final cfg = AppConfig.instance;
     if (!cfg.buddyOnScreen) {
       cfg.buddyOnScreen = true;
-      await cfg.save();
+      _lastBuddyOnScreen = true;
+      await cfg.save(pingOverlay: false);
     }
     if (!mounted) return;
-    await _enableBuddyOnScreen();
+    await _enableBuddyOnScreen(forceRestart: true);
   }
 
   Future<void> _enterDesktopOverlay() async {
@@ -313,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
     await windowManager.focus();
   }
 
-  Future<void> _enableBuddyOnScreen({bool fromStart = false}) async {
+  Future<void> _enableBuddyOnScreen({bool fromStart = false, bool forceRestart = false}) async {
     if (Platform.isWindows) {
       if (isWindowsOverlay) return;
       await _enterDesktopOverlay();
@@ -331,28 +333,45 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
     } else if (Platform.isAndroid) {
       if (_startingAndroidOverlay) return;
       _startingAndroidOverlay = true;
+      if (mounted) setState(() => _overlayBusy = true);
       try {
-        await _enableAndroidOverlay();
+        await _enableAndroidOverlay(forceRestart: forceRestart);
       } finally {
         _startingAndroidOverlay = false;
+        if (mounted) setState(() => _overlayBusy = false);
       }
     }
   }
 
-  Future<void> _enableAndroidOverlay() async {
+  Future<void> _enableAndroidOverlay({bool forceRestart = false}) async {
     var granted = await FlutterOverlayWindow.isPermissionGranted();
     if (!granted) {
       await FlutterOverlayWindow.requestPermission();
       granted = await FlutterOverlayWindow.isPermissionGranted();
     }
-    if (!granted || !mounted) return;
+    if (!granted) {
+      _toast(AppConfig.instance.translate('overlay_permission_denied'));
+      return;
+    }
+    if (!mounted) return;
     await _captureAndPersistScreenSize();
     if (!mounted) return;
     final cfg = AppConfig.instance;
-    if (await FlutterOverlayWindow.isActive()) {
+    final already = await FlutterOverlayWindow.isActive();
+    if (already && !forceRestart) {
       await _pushAndroidScreenSize();
       await _moveAndroidToBackWhenReady();
       return;
+    }
+    if (already) {
+      try {
+        await FlutterOverlayWindow.closeOverlay();
+      } catch (_) {}
+      for (var i = 0; i < 20; i++) {
+        if (!(await FlutterOverlayWindow.isActive())) break;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 120));
     }
     try {
       await _appChannel.invokeMethod('resetOverlayEngine');
@@ -362,20 +381,42 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
     final logicalW = BuddyHitRegistry.overlayWidth(scale).ceil();
     final logicalH = BuddyHitRegistry.overlayHeight(scale).ceil();
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    await FlutterOverlayWindow.showOverlay(
-      flag: OverlayFlag.defaultFlag,
-      alignment: OverlayAlignment.topLeft,
-      visibility: NotificationVisibility.visibilityPublic,
-      overlayTitle: cfg.translate('title'),
-      overlayContent: cfg.translate('overlay_mode'),
-      height: (logicalH * dpr).round(),
-      width: (logicalW * dpr).round(),
-      enableDrag: false,
-      startPosition: const OverlayPosition(24.0, 80.0),
-    );
-    await _moveAndroidToBackWhenReady();
+    try {
+      await FlutterOverlayWindow.showOverlay(
+        flag: OverlayFlag.defaultFlag,
+        alignment: OverlayAlignment.topLeft,
+        visibility: NotificationVisibility.visibilityPublic,
+        overlayTitle: cfg.translate('title'),
+        overlayContent: cfg.translate('overlay_mode'),
+        height: (logicalH * dpr).round(),
+        width: (logicalW * dpr).round(),
+        enableDrag: false,
+        startPosition: const OverlayPosition(40.0, 96.0),
+      );
+    } catch (_) {
+      _toast(cfg.translate('overlay_start_failed'));
+      return;
+    }
+    var up = false;
+    for (var i = 0; i < 25; i++) {
+      if (await FlutterOverlayWindow.isActive()) {
+        up = true;
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+    }
+    if (!up) {
+      _toast(cfg.translate('overlay_start_failed'));
+      return;
+    }
     await _pushAndroidScreenSize();
-    await cfg.save();
+    await cfg.save(pingOverlay: false);
+    await _moveAndroidToBackWhenReady();
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _moveAndroidToBackWhenReady() async {
@@ -486,43 +527,97 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
     }
 
     final scheme = Theme.of(context).colorScheme;
+    final cfg = AppConfig.instance;
     return Scaffold(
       backgroundColor: scheme.surface,
       appBar: AppBar(
-        title: Text(AppConfig.instance.translate('title')),
+        title: Text(cfg.translate('title')),
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-      ),
-      body: Stack(
-        children: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    AppConfig.instance.translate('overlay_mode_hint'),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton.icon(
-                    icon: const Icon(Icons.visibility),
-                    label: Text(AppConfig.instance.translate('start_overlay')),
-                    onPressed: _activateOverlayFromHome,
-                  ),
-                ],
-              ),
-            ),
+        actions: [
+          IconButton(
+            tooltip: cfg.translate('settings'),
+            onPressed: _openSettings,
+            icon: const Icon(Icons.settings_outlined),
           ),
-          ..._buddies(overlay: false),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openSettings,
-        child: const Icon(Icons.settings),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Card(
+                      color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              height: 168,
+                              child: TFunnyBuddy(
+                                key: const ValueKey('home_preview'),
+                                isOverlay: false,
+                                preview: true,
+                                index: 0,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              cfg.translate('overlay_mode'),
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              cfg.translate('overlay_mode_hint'),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                            ),
+                            const SizedBox(height: 20),
+                            FilledButton.icon(
+                              icon: _overlayBusy
+                                  ? SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: scheme.onPrimary,
+                                      ),
+                                    )
+                                  : const Icon(Icons.visibility),
+                              label: Text(
+                                _overlayBusy ? cfg.translate('overlay_starting') : cfg.translate('start_overlay'),
+                              ),
+                              onPressed: _overlayBusy ? null : _activateOverlayFromHome,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              cfg.translate('overlay_ready_hint'),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

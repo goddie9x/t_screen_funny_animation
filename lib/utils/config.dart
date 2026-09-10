@@ -102,7 +102,7 @@ class AppConfig extends ChangeNotifier {
 
   Size savedScreenSize() => Size(screenWidth, screenHeight);
 
-  Future<void> save() async {
+  Future<void> save({bool pingOverlay = true}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('count', shimejiCount);
     await prefs.setDouble('speed', speedMultiplier);
@@ -122,7 +122,7 @@ class AppConfig extends ChangeNotifier {
       await prefs.remove('activeCustomPresetId');
     }
     await prefs.setStringList('customPresets', customPresets.map((e) => jsonEncode(e.toJson())).toList());
-    if (Platform.isAndroid) {
+    if (pingOverlay && Platform.isAndroid) {
       try {
         if (await FlutterOverlayWindow.isActive()) {
           await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
@@ -153,6 +153,10 @@ class AppConfig extends ChangeNotifier {
         'overlay_mode': 'Buddy ngoài màn hình',
         'overlay_mode_hint': 'Mở app là chạy buddy nổi trên màn hình',
         'start_overlay': 'Hiện buddy ngoài màn hình',
+        'overlay_starting': 'Đang hiện buddy…',
+        'overlay_ready_hint': 'Buddy đang chạy trên màn hình. Chạm buddy để kéo; chạm ra ngoài dùng máy bình thường.',
+        'overlay_permission_denied': 'Cần quyền “Hiển thị trên ứng dụng khác” để hiện buddy ngoài màn hình.',
+        'overlay_start_failed': 'Không hiện được buddy. Thử bấm lại.',
         'tray_open': 'Mở ứng dụng',
         'tray_settings': 'Cài đặt',
         'tray_exit': 'Thoát',
@@ -196,6 +200,10 @@ class AppConfig extends ChangeNotifier {
         'overlay_mode': 'On-screen buddy',
         'overlay_mode_hint': 'Start with buddy floating on the screen',
         'start_overlay': 'Show buddy on screen',
+        'overlay_starting': 'Showing buddy…',
+        'overlay_ready_hint': 'Buddy is on screen. Drag the buddy; taps outside go to your apps.',
+        'overlay_permission_denied': 'Allow “Display over other apps” to show the buddy on screen.',
+        'overlay_start_failed': 'Could not show the buddy. Try again.',
         'tray_open': 'Open app',
         'tray_settings': 'Settings',
         'tray_exit': 'Exit',
