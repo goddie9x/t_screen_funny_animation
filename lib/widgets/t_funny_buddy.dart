@@ -98,6 +98,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
   late AnimationController _animCtrl;
   Timer? _timer;
   final Random _rng = Random();
+  final Map<String, bool> _imgOk = {};
 
   @override
   void initState() {
@@ -112,8 +113,13 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       vsync: this,
       duration: const Duration(milliseconds: 720),
     )..repeat();
-    _timer = Timer.periodic(Duration(milliseconds: widget.isOverlay && Platform.isAndroid ? 33 : 16), (_) => _update());
-    _brain();
+    if (!widget.preview) {
+      _timer = Timer.periodic(
+        Duration(milliseconds: widget.isOverlay && Platform.isAndroid ? 50 : 33),
+        (_) => _update(),
+      );
+      _brain();
+    }
   }
 
   @override
@@ -125,7 +131,8 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       final scale = AppConfig.instance.sizeMultiplier;
       posX = 40 + (_rng.nextDouble() * max(40, screen.width - 140)) + widget.index * 28;
       posX = posX.clamp(0, max(0, screen.width - _spriteW * scale));
-      posY = -_spriteH * scale;
+      // Android overlay window follows pos; start on-screen so the buddy is visible immediately.
+      posY = _androidWindowed ? 96 : -_spriteH * scale;
     }
   }
 
@@ -153,6 +160,8 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
   Size _worldSize(BuildContext context) {
     if (_androidWindowed) {
+      final world = BuddyHitRegistry.worldSize;
+      if (world != null && world.width > 200 && world.height > 200) return world;
       final sized = overlayPhysicsSize();
       BuddyHitRegistry.worldSize = sized;
       return sized;
@@ -174,14 +183,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
   }
 
   void _update() {
-    if (!mounted || mode == 'drag') return;
-    if (widget.preview) {
-      setState(() {
-        _ticks++;
-        mode = 'idle';
-      });
-      return;
-    }
+    if (!mounted || mode == 'drag' || widget.preview) return;
     final s = _worldSize(context);
     if (s.width < 10) return;
 
@@ -190,70 +192,73 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     final ground = s.height - h - _edgeMargin;
     final left = _leftEdge();
     final right = _rightEdge(s, w);
+    final oldMode = mode;
+    final oldLeft = isLeft;
 
-    setState(() {
-      _ticks++;
-      final onGround = posY >= ground - 0.5 && velY >= 0 && mode != 'climb';
+    _ticks++;
+    final onGround = posY >= ground - 0.5 && velY >= 0 && mode != 'climb';
 
-      if (mode == 'climb') {
-        velX = 0;
-        velY = -2.0 * AppConfig.instance.speedMultiplier;
-        posX = _wall < 0 ? left : right;
-      } else if (!onGround) {
-        velY = min(velY + 0.55, 16);
-        if (mode != 'fall' && mode != 'drag') mode = 'fall';
-      } else {
-        posY = ground;
-        if (velY > 0) velY = 0;
-        if (mode == 'fall') {
-          mode = 'idle';
-          _wall = 0;
-          velX = 0;
-        }
-        if (mode == 'walk') {
-          velX = (isLeft ? -1 : 1) * _walkSpeed;
-        } else {
-          velX = 0;
-        }
-      }
-
-      posX += velX;
-      posY += velY;
-
-      if (posY >= ground && mode != 'climb') {
-        posY = ground;
-        velY = 0;
-        if (mode == 'fall') mode = 'idle';
-      }
-
-      if (posX <= left) {
-        posX = left;
-        if ((mode == 'walk' || mode == 'fall') && posY > 40) {
-          _startClimb(-1);
-        } else if (mode != 'climb') {
-          isLeft = false;
-          if (mode == 'walk') velX = _walkSpeed;
-        }
-      } else if (posX >= right) {
-        posX = right;
-        if ((mode == 'walk' || mode == 'fall') && posY > 40) {
-          _startClimb(1);
-        } else if (mode != 'climb') {
-          isLeft = true;
-          if (mode == 'walk') velX = -_walkSpeed;
-        }
-      }
-
-      if (mode == 'climb' && posY <= _edgeMargin) {
-        mode = 'fall';
+    if (mode == 'climb') {
+      velX = 0;
+      velY = -2.0 * AppConfig.instance.speedMultiplier;
+      posX = _wall < 0 ? left : right;
+    } else if (!onGround) {
+      velY = min(velY + 0.55, 16);
+      if (mode != 'fall' && mode != 'drag') mode = 'fall';
+    } else {
+      posY = ground;
+      if (velY > 0) velY = 0;
+      if (mode == 'fall') {
+        mode = 'idle';
         _wall = 0;
-        velY = 0.4;
-        velX = isLeft ? 2.2 : -2.2;
-        posY = 0;
+        velX = 0;
       }
+      if (mode == 'walk') {
+        velX = (isLeft ? -1 : 1) * _walkSpeed;
+      } else {
+        velX = 0;
+      }
+    }
 
-      _reportHit();
-    });
+    posX += velX;
+    posY += velY;
+
+    if (posY >= ground && mode != 'climb') {
+      posY = ground;
+      velY = 0;
+      if (mode == 'fall') mode = 'idle';
+    }
+
+    if (posX <= left) {
+      posX = left;
+      if ((mode == 'walk' || mode == 'fall') && posY > 40) {
+        _startClimb(-1);
+      } else if (mode != 'climb') {
+        isLeft = false;
+        if (mode == 'walk') velX = _walkSpeed;
+      }
+    } else if (posX >= right) {
+      posX = right;
+      if ((mode == 'walk' || mode == 'fall') && posY > 40) {
+        _startClimb(1);
+      } else if (mode != 'climb') {
+        isLeft = true;
+        if (mode == 'walk') velX = -_walkSpeed;
+      }
+    }
+
+    if (mode == 'climb' && posY <= _edgeMargin) {
+      mode = 'fall';
+      _wall = 0;
+      velY = 0.4;
+      velX = isLeft ? 2.2 : -2.2;
+      posY = 0;
+    }
+
+    _reportHit();
+    if (!_androidWindowed || oldMode != mode || oldLeft != isLeft) {
+      setState(() {});
+    }
   }
 
   bool _startClimb(int wall) {
@@ -294,12 +299,14 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final sprite = Transform.scale(
-      scale: widget.preview ? 0.82 : _scale,
-      alignment: widget.preview ? Alignment.topCenter : Alignment.topLeft,
-      child: AnimatedBuilder(
-        animation: _animCtrl,
-        builder: (context, _) => _buildCharacter(),
+    final sprite = RepaintBoundary(
+      child: Transform.scale(
+        scale: widget.preview ? 0.82 : _scale,
+        alignment: widget.preview ? Alignment.topCenter : Alignment.topLeft,
+        child: AnimatedBuilder(
+          animation: _animCtrl,
+          builder: (context, _) => _buildCharacter(),
+        ),
       ),
     );
     if (widget.preview) {
@@ -351,7 +358,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
   }
 
   Widget _buildCharacter() {
-    final sec = _ticks * 0.016;
+    final sec = widget.preview ? _animCtrl.value * 0.72 : _ticks * 0.05;
     final custom = AppConfig.instance.mode == 'custom' ? AppConfig.instance.getActiveCustom() : null;
     final headImg = custom?.headImg;
     final bodyImg = custom?.bodyImg;
@@ -442,7 +449,9 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
       tilt = 0;
     }
 
-    final blink = (_ticks % (160 + widget.index * 17)) < 8;
+    final blink = widget.preview
+        ? (_animCtrl.value * 24).floor() % 28 == 0
+        : (_ticks % (80 + widget.index * 9)) < 4;
 
     return SizedBox(
       width: _spriteW,
@@ -583,8 +592,13 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
     );
   }
 
+  bool _hasImg(String? img) {
+    if (img == null || img.isEmpty) return false;
+    return _imgOk.putIfAbsent(img, () => File(img).existsSync());
+  }
+
   Widget _part(double w, double h, Color c, String? img, List<Widget> children, {double radius = 8}) {
-    final fileOk = img != null && File(img).existsSync();
+    final fileOk = _hasImg(img);
     return Container(
       width: w,
       height: h,
@@ -603,7 +617,7 @@ class _TFunnyBuddyState extends State<TFunnyBuddy> with TickerProviderStateMixin
               child: OverflowBox(
                 maxWidth: 120,
                 maxHeight: 120,
-                child: Image.file(File(img), fit: BoxFit.contain),
+                child: Image.file(File(img!), fit: BoxFit.contain),
               ),
             ),
           ...children,
