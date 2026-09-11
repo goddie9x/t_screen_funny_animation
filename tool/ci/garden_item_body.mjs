@@ -27,7 +27,7 @@ export function buildItemBody({ categorySlug, links, version, sectionIds = [] })
     content: itemPlainTextVi({ play, android, windows, version }),
     contentEn: itemPlainTextEn({ play, android, windows, version }),
     thumbnail: THUMB,
-    downloadUrl: play || android || windows,
+    downloadUrl: play || windows || android,
     images: [THUMB],
     tags: [TAG, "android", "windows", "overlay", "goddie9x"],
     sectionIds,
@@ -74,9 +74,12 @@ function itemPlainTextVi({ play, android, windows, version }) {
     "",
     play ? `• Google Play → ${play}` : "• Google Play → đang duyệt / nội bộ",
     android ? `• Android App Bundle (GitHub Release) → ${android}` : "• Android AAB → đang đóng gói",
-    windows ? `• Windows x64 zip → ${windows}` : "• Windows x64 → đang đóng gói",
+    windows
+      ? `• Windows x64 (Google Drive) → ${windows}`
+      : "• Windows x64 (Google Drive) → đang đóng gói",
     "",
     "Trên Android: mở app → cấp quyền overlay → bấm “Hiện buddy ngoài màn hình”.",
+    "Trên Windows: tải zip Drive, giải nén và chạy exe.",
   ].join("\n");
 }
 
@@ -106,8 +109,11 @@ function itemPlainTextEn({ play, android, windows, version }) {
     "",
     play ? `• Google Play → ${play}` : "• Google Play → under review / internal",
     android ? `• Android App Bundle (GitHub Release) → ${android}` : "• Android AAB → packaging",
-    windows ? `• Windows x64 zip → ${windows}` : "• Windows x64 → packaging",
+    windows
+      ? `• Windows x64 (Google Drive) → ${windows}`
+      : "• Windows x64 (Google Drive) → packaging",
     "",
     "On Android: open the app → grant overlay permission → tap “Show buddy on screen”.",
+    "On Windows: download the Drive zip, unzip, and run the exe.",
   ].join("\n");
 }

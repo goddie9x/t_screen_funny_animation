@@ -96,12 +96,6 @@ jobs:
         with:
           name: windows-prod
           path: TScreenFunnyAnimation-windows-x64.zip
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: Official Release ${{ env.RELEASE_TAG }}
-          prerelease: false
-          files: TScreenFunnyAnimation-windows-x64.zip
 
   android:
     if: github.ref_name == 'prod'
@@ -314,6 +308,35 @@ jobs:
     environment: Prod
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-prod
+          path: dist
+      - name: Check Drive secrets
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          for name in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN GOOGLE_DRIVE_FOLDER_ID; do
+            if [ -z "${!name}" ]; then
+              echo "$name=MISSING"
+            else
+              echo "$name=ok"
+            fi
+          done
+          if [ -z "$GOOGLE_CLIENT_ID" ] || [ -z "$GOOGLE_CLIENT_SECRET" ] || [ -z "$GOOGLE_REFRESH_TOKEN" ] || [ -z "$GOOGLE_DRIVE_FOLDER_ID" ]; then
+            echo "Add the MISSING names as repository Actions secrets (or Prod environment secrets), then re-run."
+            exit 1
+          fi
+      - name: Upload Windows zip to Google Drive
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: node tool/ci/drive_upload.mjs dist
       - name: Write release links
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
