@@ -14,7 +14,6 @@ export function itemTag() {
 
 export function buildItemBody({ categorySlug, links, version, sectionIds = [] }) {
   const play = links.play || "";
-  const android = links.android || "";
   const windows = links.windows || "";
   return {
     title: TITLE,
@@ -24,10 +23,10 @@ export function buildItemBody({ categorySlug, links, version, sectionIds = [] })
       "Buddy hoạt hình nổi trên màn hình: đi, leo tường, tùy chỉnh, dùng app khác.",
     shortDescriptionEn:
       "A floating animated buddy on your screen: walk, climb, customize, keep using other apps.",
-    content: itemPlainTextVi({ play, android, windows, version }),
-    contentEn: itemPlainTextEn({ play, android, windows, version }),
+    content: itemPlainTextVi({ play, windows, version }),
+    contentEn: itemPlainTextEn({ play, windows, version }),
     thumbnail: THUMB,
-    downloadUrl: play || windows || android,
+    downloadUrl: play || windows,
     images: [THUMB],
     tags: [TAG, "android", "windows", "overlay", "goddie9x"],
     sectionIds,
@@ -48,7 +47,7 @@ export function samePublicFields(current, next) {
   );
 }
 
-function itemPlainTextVi({ play, android, windows, version }) {
+function itemPlainTextVi({ play, windows, version }) {
   return [
     "🚀 T Screen Funny Animation – buddy hoạt hình sống trên màn hình",
     "",
@@ -72,18 +71,17 @@ function itemPlainTextVi({ play, android, windows, version }) {
     "",
     `## Tải bản ${version}`,
     "",
-    play ? `• Google Play → ${play}` : "• Google Play → đang duyệt / nội bộ",
-    android ? `• Android App Bundle (GitHub Release) → ${android}` : "• Android AAB → đang đóng gói",
+    play ? `• Android (Google Play) → ${play}` : "• Android (Google Play) → đang duyệt / nội bộ",
     windows
       ? `• Windows x64 (Google Drive) → ${windows}`
       : "• Windows x64 (Google Drive) → đang đóng gói",
     "",
-    "Trên Android: mở app → cấp quyền overlay → bấm “Hiện buddy ngoài màn hình”.",
+    "Trên Android: cài từ Play → cấp quyền overlay → bấm “Hiện buddy ngoài màn hình”.",
     "Trên Windows: tải zip Drive, giải nén và chạy exe.",
   ].join("\n");
 }
 
-function itemPlainTextEn({ play, android, windows, version }) {
+function itemPlainTextEn({ play, windows, version }) {
   return [
     "🚀 T Screen Funny Animation – a buddy that lives on your screen",
     "",
@@ -107,13 +105,12 @@ function itemPlainTextEn({ play, android, windows, version }) {
     "",
     `## Download ${version}`,
     "",
-    play ? `• Google Play → ${play}` : "• Google Play → under review / internal",
-    android ? `• Android App Bundle (GitHub Release) → ${android}` : "• Android AAB → packaging",
+    play ? `• Android (Google Play) → ${play}` : "• Android (Google Play) → under review / internal",
     windows
       ? `• Windows x64 (Google Drive) → ${windows}`
       : "• Windows x64 (Google Drive) → packaging",
     "",
-    "On Android: open the app → grant overlay permission → tap “Show buddy on screen”.",
+    "On Android: install from Play → grant overlay permission → tap “Show buddy on screen”.",
     "On Windows: download the Drive zip, unzip, and run the exe.",
   ].join("\n");
 }
