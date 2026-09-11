@@ -1,9 +1,11 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 
-const repo = process.env.GITHUB_REPOSITORY;
-const tag = process.env.RELEASE_TAG;
-if (!repo || !tag) {
-  throw new Error("GITHUB_REPOSITORY and RELEASE_TAG are required");
+const version =
+  process.env.RELEASE_VERSION ||
+  (process.env.RELEASE_TAG || "").replace(/^v/, "") ||
+  "";
+if (!version) {
+  throw new Error("RELEASE_VERSION or RELEASE_TAG is required");
 }
 
 const play =
@@ -18,14 +20,13 @@ try {
   drive = {};
 }
 
-const base = `https://github.com/${repo}/releases/download/${tag}`;
+// Destinations only: Play (Android) + Drive (Windows). No GitHub Release assets.
 const links = {
   play,
-  android: `${base}/app-release.aab`,
-  // Windows zip is hosted on Google Drive (same pattern as ExtendTaskManager).
+  android: play,
   windows: drive.windows || "",
-  tag,
-  version: tag.replace(/^v/, ""),
+  tag: process.env.RELEASE_TAG || `v${version}`,
+  version,
 };
 
 await writeFile("release-links.json", `${JSON.stringify(links, null, 2)}\n`);

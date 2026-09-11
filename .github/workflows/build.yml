@@ -285,12 +285,6 @@ jobs:
         with:
           name: android-aab-prod
           path: build/app/outputs/bundle/release/app-release.aab
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: Official Release ${{ env.RELEASE_TAG }}
-          prerelease: false
-          files: build/app/outputs/bundle/release/app-release.aab
       - name: Publish to Play Store
         if: env.PLAY_JSON != ''
         uses: r0adkll/upload-google-play@v1
@@ -339,8 +333,8 @@ jobs:
         run: node tool/ci/drive_upload.mjs dist
       - name: Write release links
         env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          RELEASE_VERSION: ${{ env.APP_VERSION_NAME }}
           PLAY_STORE_URL: ${{ vars.PLAY_STORE_URL }}
         run: node tool/ci/write_release_links.mjs
       - name: Publish hmt9x.dev item
@@ -351,3 +345,12 @@ jobs:
           HMT9X_CATEGORY_SLUG: ${{ vars.HMT9X_CATEGORY_SLUG }}
           HMT9X_SECTION_ID: ${{ vars.HMT9X_SECTION_ID }}
         run: node tool/ci/garden_publish.mjs
+      - name: Push version tag
+        run: |
+          tag="${RELEASE_TAG}"
+          if git ls-remote --tags origin "refs/tags/$tag" | grep -q "refs/tags/$tag$"; then
+            echo "Tag $tag already exists"
+            exit 0
+          fi
+          git tag "$tag"
+          git push origin "$tag"
