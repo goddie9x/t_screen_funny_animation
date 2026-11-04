@@ -1,0 +1,204 @@
+# Standalone: build Windows MSIX cho Flutter desktop app (không publish lên Store).
+#
+# Copy file này thành .github/workflows/msix.yml trong repo, sửa phần CONFIG.
+# Chạy trên windows-latest (đã có sẵn Visual Studio build tools).
+# Workflow: setup Flutter → flutter build windows --release → đóng gói MSIX
+# (AppxManifest + Assets + makeappx) rồi upload artifact.
+#
+# Yêu cầu: repo PHẢI có thư mục windows/ (Flutter Windows platform).
+# Nếu chưa có, chạy 'flutter create --platforms=windows .' trong repo rồi commit.
+#
+# Trigger: workflow_dispatch (nhập version X.Y.Z) hoặc push tag `msix-v*`
+# (version lấy từ tag, vd msix-v1.2.0 → 1.2.0).
+#
+# Kết quả: artifact "<package-prefix>-<version>.msix" (unsigned — Store tự
+# re-sign khi nộp; cài local thì self-sign + Developer Mode).
+# KHÔNG tự publish lên Microsoft Store — bro tự upload tay lên Partner Center.
+#
+name: MSIX
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version X.Y.Z (sẽ thành X.Y.Z.0 trong manifest)"
+        required: true
+        default: "0.1.0"
+  push:
+    tags: ["msix-v*"]
+
+env:
+  # ================= CONFIG — sửa cho từng repo =================
+  APP_NAME: "TScreen Funny Animation"
+  PACKAGE_PREFIX: "t-screen-funny-animation" # chữ thường, không dấu cách, không gạch dưới
+  DESCRIPTION: "Animated desktop buddy that walks and climbs on your screen - customizable and works alongside other apps."
+  EXE_NAME: "t_screen_funny_animation.exe" # tên file exe trong build/windows/<arch>/runner/Release (chạy thử 'flutter build windows' local để xem tên thật)
+  # Flutter SDK. Cần Dart >= 3.11.5 cho các repo hiện tại → Flutter 3.41+.
+  # Cú pháp "x" được hỗ trợ (vd "3.44.x" = patch mới nhất của 3.44).
+  # Để trống = dùng stable mới nhất (giống CI của các repo).
+  FLUTTER_VERSION: "3.44.x"
+  PROCESSOR_ARCHITECTURE: "x64" # x64 | arm64 — flutter build theo arch của máy host (windows-latest = x64); arm64 cần runner windows-11-arm. Flutter đã bỏ x86 Windows.
+  # Identity Partner Center (View app identity details).
+  # MSIX_PUBLISHER + MSIX_PUBLISHER_DISPLAY_NAME đã điền sẵn đúng tài khoản —
+  # Partner Center bắt PublisherDisplayName trong manifest phải khớp tên
+  # publisher ("goddie9x"), sai là rớt validation lúc upload.
+  # MSIX_IDENTITY_NAME là riêng từng app (vd goddie9x.TenApp) — lấy từ
+  # Partner Center sau khi reserve tên. Để trống = placeholder CN=Dev —
+  # chỉ test local, nộp Store thì điền thật.
+  MSIX_IDENTITY_NAME: "goddie9x.TScreenFunnyAnimation"
+  MSIX_PUBLISHER: "CN=8633D8C8-01ED-4486-B41B-1CD6E3B8F80D"
+  MSIX_PUBLISHER_DISPLAY_NAME: "goddie9x"
+  MSIX_ASSETS_DIR: "" # thư mục Assets riêng (tương đối so với repo root), trống = tự sinh
+  # ==============================================================
+
+jobs:
+  msix:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        run: |
+          $v = '${{ github.event.inputs.version }}'
+          if ('${{ github.ref_type }}' -eq 'tag') { $v = '${{ github.ref_name }}' -replace '^msix-v', '' }
+          if (-not $v) { $v = '0.1.0' }
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "version phải dạng X.Y.Z, nhận được: $v" }
+          $parts = $v -split '\.'
+          if (($parts | Where-Object { [int]$_ -gt 65535 })) {
+            throw "mỗi phần version phải 0-65535 (MSIX cho phép major = 0)"
+          }
+          if ($v -eq '0.0.0') { throw "version 0.0.0 không hợp lệ cho MSIX (makeappx từ chối 0.0.0.0)" }
+          if ('${{ env.PROCESSOR_ARCHITECTURE }}' -notin @('x64','arm64')) {
+            throw "PROCESSOR_ARCHITECTURE cho Flutter chỉ hỗ trợ x64/arm64"
+          }
+          "MSIX_VERSION=$v.0" >> $env:GITHUB_ENV
+          "RESOLVED_VERSION=$v" >> $env:GITHUB_ENV
+          "APP_DIR=build/windows/${{ env.PROCESSOR_ARCHITECTURE }}/runner/Release" >> $env:GITHUB_ENV
+          "Đóng gói MSIX version: $v.0"
+
+      - name: Check Windows platform
+        run: |
+          if (-not (Test-Path 'windows')) {
+            throw "không tìm thấy thư mục windows/ — repo chưa hỗ trợ Flutter Windows. Chạy 'flutter create --platforms=windows .' trong repo rồi commit."
+          }
+          "Tìm thấy thư mục windows/"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Verify build output
+        run: |
+          $exe = Join-Path '${{ env.APP_DIR }}' '${{ env.EXE_NAME }}'
+          if (-not (Test-Path $exe)) {
+            throw "không thấy exe sau build: $exe — kiểm tra lại EXE_NAME trong CONFIG (tên file exe thật trong build/windows/${{ env.PROCESSOR_ARCHITECTURE }}/runner/Release/)"
+          }
+          "Tìm thấy: $exe"
+
+      - name: Stage MSIX
+        run: |
+          $stage = "msix_stage"
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory $stage | Out-Null
+          Copy-Item (Join-Path '${{ env.APP_DIR }}' '*') $stage -Recurse -Force
+
+          $identityName = '${{ env.MSIX_IDENTITY_NAME }}'
+          $publisher = '${{ env.MSIX_PUBLISHER }}'
+          $publisherDisplay = '${{ env.MSIX_PUBLISHER_DISPLAY_NAME }}'
+          if (-not $identityName) { $identityName = "dev.placeholder.${{ env.PACKAGE_PREFIX }}" }
+          if (-not $publisher) { $publisher = "CN=Dev" }
+          if (-not $publisherDisplay) { $publisherDisplay = '${{ env.APP_NAME }}' }
+          if ($identityName -notmatch '^[A-Za-z0-9\.\-]+$') {
+            throw "MSIX_IDENTITY_NAME chỉ chấp nhận chữ, số, dấu chấm, gạch ngang: $identityName"
+          }
+          if ($identityName -like 'dev.placeholder.*') {
+            "::warning::MSIX_IDENTITY_NAME đang để trống (dùng placeholder) — MSIX này chỉ để test local, nộp Store thì điền identity thật từ Partner Center"
+          }
+          # Escape XML cho các giá trị text/attribute (tên app VN hay có &)
+          $esc = { param($s) [System.Security.SecurityElement]::Escape([string]$s) }
+          $appNameEsc = & $esc '${{ env.APP_NAME }}'
+          $descEsc = & $esc '${{ env.DESCRIPTION }}'
+          $publisherEsc = & $esc $publisher
+          $publisherDisplayEsc = & $esc $publisherDisplay
+          $exeEsc = & $esc '${{ env.EXE_NAME }}'
+
+          $assetsDir = '${{ env.MSIX_ASSETS_DIR }}'
+          New-Item -ItemType Directory (Join-Path $stage 'Assets') -Force | Out-Null
+          if ($assetsDir -and (Test-Path $assetsDir)) {
+            Copy-Item (Join-Path $assetsDir '*') (Join-Path $stage 'Assets') -Recurse -Force
+          } else {
+            # Sinh placeholder PNG cho các logo bắt buộc
+            Add-Type -AssemblyName System.Drawing
+            $logos = @{ 'StoreLogo.png' = 50; 'Square44x44Logo.png' = 44; 'Square150x150Logo.png' = 150 }
+            foreach ($kv in $logos.GetEnumerator()) {
+              $bmp = New-Object System.Drawing.Bitmap($kv.Value, $kv.Value)
+              $g = [System.Drawing.Graphics]::FromImage($bmp)
+              $g.Clear([System.Drawing.Color]::FromArgb(0, 90, 158))
+              $g.Dispose()
+              $bmp.Save((Join-Path $stage "Assets/$($kv.Key)"), [System.Drawing.Imaging.ImageFormat]::Png)
+              $bmp.Dispose()
+            }
+          }
+
+          $manifest = @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+                   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+                   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+            <Identity Name="$identityName" Publisher="$publisherEsc" Version="$env:MSIX_VERSION" ProcessorArchitecture="${{ env.PROCESSOR_ARCHITECTURE }}"/>
+            <Properties>
+              <DisplayName>$appNameEsc</DisplayName>
+              <PublisherDisplayName>$publisherDisplayEsc</PublisherDisplayName>
+              <Description>$descEsc</Description>
+              <Logo>Assets\StoreLogo.png</Logo>
+            </Properties>
+            <Resources><Resource Language="en-us"/></Resources>
+            <Dependencies>
+              <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0"/>
+            </Dependencies>
+            <Capabilities>
+              <rescap:Capability Name="runFullTrust"/>
+            </Capabilities>
+            <Applications>
+              <Application Id="App" Executable="$exeEsc" EntryPoint="Windows.FullTrustApplication">
+                <uap:VisualElements DisplayName="$appNameEsc" Description="$descEsc" BackgroundColor="transparent"
+                  Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png"/>
+              </Application>
+            </Applications>
+          </Package>
+          "@
+          $manifest | Out-File (Join-Path $stage 'AppxManifest.xml') -Encoding utf8
+
+      - name: Pack MSIX (makeappx)
+        run: |
+          $makeappx = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\makeappx.exe' |
+            Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $makeappx) { throw "không tìm thấy makeappx.exe trên runner" }
+          "Dùng: $makeappx"
+          $out = "${{ env.PACKAGE_PREFIX }}-${{ env.RESOLVED_VERSION }}.msix"
+          & $makeappx pack /d msix_stage /p $out /o /v
+          if ($LASTEXITCODE -ne 0) { throw "makeappx pack thất bại (exit $LASTEXITCODE)" }
+          Get-ChildItem $out
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_PREFIX }}-${{ env.RESOLVED_VERSION }}-msix
+          path: ${{ env.PACKAGE_PREFIX }}-${{ env.RESOLVED_VERSION }}.msix
+          if-no-files-found: error
