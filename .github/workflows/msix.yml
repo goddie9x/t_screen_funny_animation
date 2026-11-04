@@ -48,7 +48,7 @@ env:
   MSIX_IDENTITY_NAME: "goddie9x.TScreenFunnyAnimation"
   MSIX_PUBLISHER: "CN=8633D8C8-01ED-4486-B41B-1CD6E3B8F80D"
   MSIX_PUBLISHER_DISPLAY_NAME: "goddie9x"
-  MSIX_ASSETS_DIR: "" # thư mục Assets riêng (tương đối so với repo root), trống = tự sinh
+  MSIX_ASSETS_DIR: "packaging/msix-assets"
   # ==============================================================
 
 jobs:
