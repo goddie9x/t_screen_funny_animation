@@ -224,10 +224,15 @@ class _HomeScreenState extends State<HomeScreen> with WindowListener, TrayListen
   }
 
   Future<void> _quitApp() async {
+    _hitTimer?.cancel();
+    _hitTimer = null;
     if (Platform.isWindows) {
       await windowManager.setPreventClose(false);
       await trayManager.destroy();
-      await windowManager.destroy();
+      // close() thay vì destroy(): destroy() gọi thẳng native ::DestroyWindow()
+      // đồng bộ trong lúc window proc vẫn chạm view controller đang teardown →
+      // access violation 0xC0000005, app treo vài giây (window_manager #478/#502).
+      await windowManager.close();
     } else if (Platform.isAndroid) {
       if (await FlutterOverlayWindow.isActive()) {
         await FlutterOverlayWindow.closeOverlay();
